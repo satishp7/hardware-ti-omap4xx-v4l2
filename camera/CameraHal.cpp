@@ -2360,6 +2360,7 @@ bool CameraHal::setVideoModeParameters(const CameraParameters& params)
         mParameters.remove(CameraParameters::KEY_VIDEO_STABILIZATION);
     }
 
+
     // Set VNF
     if (params.get(TICameraParameters::KEY_VNF) == NULL) {
         CAMHAL_LOGDA("Enable VNF");
@@ -2373,17 +2374,22 @@ bool CameraHal::setVideoModeParameters(const CameraParameters& params)
         mParameters.set(TICameraParameters::KEY_VNF, params.get(TICameraParameters::KEY_VNF));
     }
 
-    // For VSTAB alone for 1080p resolution, padded width goes > 2048, which cannot be rendered by GPU.
-    // In such case, there is support in Ducati for combination of VSTAB & VNF requiring padded width < 2048.
-    // So we are forcefully enabling VNF, if VSTAB is enabled for 1080p resolution.
-    int w, h;
-    params.getPreviewSize(&w, &h);
-    valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
-    if (valstr && (strcmp(valstr, CameraParameters::TRUE) == 0) && (w == 1920)) {
-        CAMHAL_LOGDA("Force Enable VNF for 1080p");
-        mParameters.set(TICameraParameters::KEY_VNF, CameraParameters::TRUE);
-        restartPreviewRequired = true;
-    }
+#if !defined(OMAP_ENHANCEMENT) && !defined(ENHANCED_DOMX)
+        // For VSTAB alone for 1080p resolution, padded width goes > 2048, which cannot be rendered by GPU.
+        // In such case, there is support in Ducati for combination of VSTAB & VNF requiring padded width < 2048.
+        // So we are forcefully enabling VNF, if VSTAB is enabled for 1080p resolution.
+        int w, h;
+        params.getPreviewSize(&w, &h);
+        valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
+        if (valstr && (strcmp(valstr, CameraParameters::TRUE) == 0) && (w == 1920)) {
+            CAMHAL_LOGDA("Force Enable VNF for 1080p");
+            const char *valKeyVnf = mParameters.get(TICameraParameters::KEY_VNF);
+            if(!valKeyVnf || (strcmp(valKeyVnf, CameraParameters::TRUE) != 0)) {
+                mParameters.set(TICameraParameters::KEY_VNF, CameraParameters::TRUE);
+                restartPreviewRequired = true;
+            }
+        }
+#endif
 
     LOG_FUNCTION_NAME_EXIT;
 
