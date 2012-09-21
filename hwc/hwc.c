@@ -1703,7 +1703,7 @@ static int omap4_hwc_prepare(struct hwc_composer_device *dev, hwc_layer_list_t* 
     int ix_s3d = -1;
 
     int blit_all = 0;
-    blit_reset(hwc_dev, list->flags);
+    blit_reset(hwc_dev, list ? list->flags : 0);
 
     /* If the SGX is used or we are going to blit something we need a framebuffer
      * and a DSS pipe
@@ -1739,7 +1739,7 @@ static int omap4_hwc_prepare(struct hwc_composer_device *dev, hwc_layer_list_t* 
              is_protected(layer) ||
              is_upscaled_NV12(hwc_dev, layer) ||
              (hwc_dev->ext.current.docking && hwc_dev->ext.current.enabled && dockable(layer))) &&
-            mem_used + mem1d(handle) < limits.tiler1d_slot_size &&
+            mem_used + mem1d(handle) <= limits.tiler1d_slot_size &&
             /* can't have a transparent overlay in the middle of the framebuffer stack */
             !(is_BLENDED(layer) && fb_z >= 0)) {
 
@@ -1968,6 +1968,14 @@ static int omap4_hwc_prepare(struct hwc_composer_device *dev, hwc_layer_list_t* 
         dsscomp->mgrs[1].ix = 1;
         dsscomp->num_mgrs++;
         hwc_dev->ext_ovls = dsscomp->num_ovls - hwc_dev->post2_layers;
+    }
+
+    /*
+     * Whilst the mode of the display is being changed drop compositions to the
+     * display
+     */
+    if (ext->last_mode == 0 && hwc_dev->on_tv) {
+        dsscomp->num_ovls = 0;
     }
 
     if (debug) {
