@@ -1471,7 +1471,8 @@ status_t CameraHal::allocRawBufs(int width, int height, const char* previewForma
     ///Always allocate the buffers for image capture using MemoryManager
     if (NO_ERROR == ret) {
         if(( NULL != mVideoBuffers )) {
-            ret = freeRawBufs();
+            // Re-use the buffer for raw capture.
+            return ret;
         }
     }
 
@@ -2359,6 +2360,7 @@ bool CameraHal::setVideoModeParameters(const CameraParameters& params)
         mParameters.remove(CameraParameters::KEY_VIDEO_STABILIZATION);
     }
 
+
     // Set VNF
     if (params.get(TICameraParameters::KEY_VNF) == NULL) {
         CAMHAL_LOGDA("Enable VNF");
@@ -2372,17 +2374,22 @@ bool CameraHal::setVideoModeParameters(const CameraParameters& params)
         mParameters.set(TICameraParameters::KEY_VNF, params.get(TICameraParameters::KEY_VNF));
     }
 
-    // For VSTAB alone for 1080p resolution, padded width goes > 2048, which cannot be rendered by GPU.
-    // In such case, there is support in Ducati for combination of VSTAB & VNF requiring padded width < 2048.
-    // So we are forcefully enabling VNF, if VSTAB is enabled for 1080p resolution.
-    int w, h;
-    params.getPreviewSize(&w, &h);
-    valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
-    if (valstr && (strcmp(valstr, CameraParameters::TRUE) == 0) && (w == 1920)) {
-        CAMHAL_LOGDA("Force Enable VNF for 1080p");
-        mParameters.set(TICameraParameters::KEY_VNF, CameraParameters::TRUE);
-        restartPreviewRequired = true;
-    }
+#if !defined(OMAP_ENHANCEMENT) && !defined(ENHANCED_DOMX)
+        // For VSTAB alone for 1080p resolution, padded width goes > 2048, which cannot be rendered by GPU.
+        // In such case, there is support in Ducati for combination of VSTAB & VNF requiring padded width < 2048.
+        // So we are forcefully enabling VNF, if VSTAB is enabled for 1080p resolution.
+        int w, h;
+        params.getPreviewSize(&w, &h);
+        valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
+        if (valstr && (strcmp(valstr, CameraParameters::TRUE) == 0) && (w == 1920)) {
+            CAMHAL_LOGDA("Force Enable VNF for 1080p");
+            const char *valKeyVnf = mParameters.get(TICameraParameters::KEY_VNF);
+            if(!valKeyVnf || (strcmp(valKeyVnf, CameraParameters::TRUE) != 0)) {
+                mParameters.set(TICameraParameters::KEY_VNF, CameraParameters::TRUE);
+                restartPreviewRequired = true;
+            }
+        }
+#endif
 
     LOG_FUNCTION_NAME_EXIT;
 
@@ -2992,9 +2999,7 @@ status_t CameraHal::__takePicture(const char *params)
 
         // pause preview during normal image capture
         // do not pause preview if recording (video state)
-        if ((NO_ERROR == ret) &&
-                (NULL != mDisplayAdapter.get()) &&
-                (burst < 1 || isCPCamMode)) {
+        if ( (NO_ERROR == ret) && (NULL != mDisplayAdapter.get()) ) {
             if (mCameraAdapter->getState() != CameraAdapter::VIDEO_STATE) {
                 mDisplayPaused = true;
                 mPreviewEnabled = false;
