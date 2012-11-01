@@ -37,6 +37,10 @@ ifdef TI_CAMERAHAL_PROFILING
     CAMERAHAL_CFLAGS += -DCAMERAHAL_OMX_PROFILING
 endif
 
+ifeq ($(ENHANCED_DOMX),true)
+    CAMERAHAL_CFLAGS += -DENHANCED_DOMX
+endif
+
 CAMERAHAL_CFLAGS += -DLOG_TAG=\"CameraHal\"
 
 OMAP4_CAMERA_HAL_SRC := \
@@ -97,7 +101,6 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/inc/OMXCameraAdapter \
     $(LOCAL_PATH)/../libtiutils \
     hardware/ti/omap4xxx/tiler \
-    hardware/ti/omap4xxx/ion \
     frameworks/base/include/ui \
     frameworks/base/include/utils \
     $(DOMX_PATH)/omx_core/inc \
@@ -154,7 +157,6 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/inc/V4LCameraAdapter \
     $(LOCAL_PATH)/../libtiutils \
     hardware/ti/omap4xxx/tiler \
-    hardware/ti/omap4xxx/ion \
     frameworks/base/include/ui \
     frameworks/base/include/utils \
     frameworks/base/include/media/stagefright \
@@ -201,7 +203,6 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/inc/V4LCameraAdapter \
     $(LOCAL_PATH)/../libtiutils \
     hardware/ti/omap4xxx/tiler \
-    hardware/ti/omap4xxx/ion \
     frameworks/base/include/ui \
     frameworks/base/include/utils \
     $(DOMX_PATH)/omx_core/inc \
