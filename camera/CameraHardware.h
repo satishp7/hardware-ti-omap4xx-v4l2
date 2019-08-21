@@ -88,7 +88,7 @@ public:
     virtual status_t sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
     virtual void release();
 
-                        CameraHardware();
+                        CameraHardware(int camId);
     virtual             ~CameraHardware();
 
     //static wp<CameraHardwareInterface> singleton;

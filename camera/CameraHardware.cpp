@@ -56,6 +56,7 @@
 static int mDebugFps = 0;
 //HACK : camera launch based on prop
 static char mCameraPath[MAX_STR_LEN];
+static int mCameraId = 0;
 
 int version=0;
 namespace android {
@@ -71,9 +72,9 @@ void CameraHardware::setCameraPath()
 {
     //HACK : camera launch based on prop
     char value[PROPERTY_VALUE_MAX];
-    int cameraId = 0;
-    property_get("rw.set.camera", value, "0");
-    cameraId = atoi(value);
+    int cameraId = mCameraId;
+    //property_get("rw.set.camera", value, "0");
+    //cameraId = atoi(value);
     memset(mCameraPath, '\0', sizeof(char)*MAX_STR_LEN);
     if (cameraId != 0)
         strcpy(mCameraPath,"/dev/video1");
@@ -85,7 +86,7 @@ void CameraHardware::setCameraPath()
 
 }
 
-CameraHardware::CameraHardware()
+CameraHardware::CameraHardware(int camId)
                   : mParameters(),
                     mHeap(0),
                     mPreviewHeap(0),
@@ -102,24 +103,18 @@ CameraHardware::CameraHardware()
 	/* create camera */
 	mCamera = new V4L2Camera();
 	version = get_kernel_version();
+    mCameraId = camId;
 	if(version <= 0)
 		LOGE("Failed to parse kernel version\n");
 
 
-	if(version >= KERNEL_VERSION(2,6,37))
-	{
-        setCameraPath();
-		LOGE("version >= KERNEL_VERSION(2,6,37)");
-		mCamera->Open(mCameraPath);
-//		mCamera->Open_media_device(MEDIA_DEVICE);
-	}
-	else
-	{
-		mCamera->Open(VIDEO_DEVICE_0);
-	}
+    setCameraPath();
+    LOGE("version >= KERNEL_VERSION(2,6,37)");
+    //mCamera->Open(mCameraPath);
+    //mCamera->Open_media_device(MEDIA_DEVICE);
 
 	initDefaultParameters();
-        mNativeWindow=NULL;
+    mNativeWindow=NULL;
 
     /* whether prop "debug.camera.showfps" is enabled or not */
     char value[PROPERTY_VALUE_MAX];
@@ -245,6 +240,8 @@ int CameraHardware::setPreviewWindow( preview_stream_ops_t *window)
     }
     int width, height;
     mParameters.getPreviewSize(&width, &height);
+    const char *str_preview_format = mParameters.getPreviewFormat();
+    LOGV("%s: str preview format %s width : %d height : %d ", __func__, str_preview_format, width, height);
     //width = 640;
     //height = 480;
     mNativeWindow=window;

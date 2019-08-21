@@ -20,7 +20,7 @@
 * This file maps the Camera Hardware Interface to V4L2.
 *
 */
-
+#define LOG_NDEBUG 0
 #define LOG_TAG "****CameraHAL"
 
 #include <stdio.h>
@@ -45,6 +45,7 @@
 #include <binder/MemoryHeapBase.h>
 //#include <utils/threads.h>
 #include "V4L2Camera.h"
+#include <cutils/properties.h>
 #define LOG_FUNCTION_NAME           LOGV("%d: %s() ENTER", __LINE__, __FUNCTION__);
 
 using namespace android;
@@ -341,6 +342,19 @@ int camera_device_open(const hw_module_t* module, const char* name,
             goto fail;
         }
 
+        // HACK: set prop based on camera id
+        //
+        LOGI("camera_device open:cameraid:%d", cameraid);
+        if(cameraid > 0) {
+            if(property_set("ctl.start", "fclink") < 0) {
+                LOGI("HACK: property set to camera 1 is failed");
+            }
+        } else {
+            if(property_set("ctl.start", "bclink") < 0) {
+                LOGI("HACK: property set to camera 0 is failed");
+            }
+        }
+        //
         memset(camera_device, 0, sizeof(*camera_device));
         memset(camera_ops, 0, sizeof(*camera_ops));
 
@@ -379,7 +393,7 @@ int camera_device_open(const hw_module_t* module, const char* name,
         // -------- TI specific stuff --------
 
         camera_device->cameraid = cameraid;
-        V4L2CameraHardware = new CameraHardware();
+        V4L2CameraHardware = new CameraHardware(cameraid);
     }
 
     return rv;
@@ -400,7 +414,7 @@ fail:
 int camera_get_number_of_cameras(void)
 {
     LOG_FUNCTION_NAME
-    int num_cameras =1;// MAX_CAMERAS_SUPPORTED;
+    int num_cameras = 2 ; //2 ; //MAX_CAMERAS_SUPPORTED;
     return num_cameras;
 }
 
