@@ -135,6 +135,7 @@ private:
 
     static int beginPictureThread(void *cookie);
     int pictureThread();
+    void st_stopPreview();
 
     camera_request_memory   mRequestMemory;
     preview_stream_ops_t*  mNativeWindow;
@@ -175,6 +176,8 @@ private:
 
     bool                previewStopped;
     bool                mRecordingEnabled;
+    bool                mTakePicture;
+    bool                mPreviewRequestStop;
 };
 
 }; // namespace android

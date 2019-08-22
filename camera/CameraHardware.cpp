@@ -116,6 +116,10 @@ CameraHardware::CameraHardware(int camId)
 	initDefaultParameters();
     mNativeWindow=NULL;
 
+    /* picture taken */
+    mTakePicture = false;
+    mPreviewRequestStop = true;
+
     /* whether prop "debug.camera.showfps" is enabled or not */
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.camera.showfps", value, "0");
@@ -342,9 +346,32 @@ int CameraHardware::previewThread()
 
     if (!previewStopped) {
 
+        // request for image capture
+        //TODO xxx : Optimize the memory capture call. Too many memcpy
+        if (mTakePicture) {
+            if (mMsgEnabled & CAMERA_MSG_COMPRESSED_IMAGE) {
+#if 0
+                LOGE ("--------------mJpegPictureCallback");
+                camera_memory_t* picture = mRequestMemory(-1, framesize, 1, NULL);
+                mCamera->GrabRawFrame(picture->data, width, height);
+                LOGE ("--------------after GrabJpeg");
+                mDataCb(CAMERA_MSG_COMPRESSED_IMAGE,picture,0,NULL ,mCallbackCookie);
+                LOGE ("--------------after mDataCb setCallbacks");
+#else
+                LOGE ("--------------mJpegPictureCallback");
+                camera_memory_t* picture  = mCamera->GrabJpegFrame(mRequestMemory);
+                LOGE ("--------------after GrabJpeg");
+                mDataCb(CAMERA_MSG_COMPRESSED_IMAGE,picture,0,NULL ,mCallbackCookie);
+                LOGE ("--------------after mDataCb setCallbacks");
+#endif
+        /* picture taken */
+                mTakePicture = false;
+            }
+        }
+
         mLock.lock();
 
-        if (mNativeWindow != NULL) {
+        if (mNativeWindow != NULL && !mPreviewRequestStop) {
 
             if ((err = mNativeWindow->dequeue_buffer(mNativeWindow,(buffer_handle_t**) &hndl2hndl,&stride)) != 0) {
                 LOGW("Surface::dequeueBuffer returned error %d", err);
@@ -378,8 +405,9 @@ int CameraHardware::previewThread()
                         nsecs_t timeStamp = systemTime(SYSTEM_TIME_MONOTONIC);
                         //mTimestampFn(timeStamp, CAMERA_MSG_VIDEO_FRAME,mRecordBuffer, mUser);
                     }
+
                     mDataCb(CAMERA_MSG_PREVIEW_FRAME,picture,0,NULL,mCallbackCookie);
-		}
+                }
 
                 mCamera->ReleasePreviewFrame();
             }
@@ -393,11 +421,16 @@ int CameraHardware::previewThread()
 
 status_t CameraHardware::startPreview()
 {
-
     int width, height;
     int mHeapSize = 0;
     int ret = 0;
     LOGD("HACK:startPreview");
+    mPreviewRequestStop = false;
+    if(previewStopped == false) {
+        LOGD("HACK: preview is already running");
+        usleep(5000);
+        return NO_ERROR;
+    }
     if(!mCamera) {
         LOGD("HACK:recreate camera handle");
         delete mCamera;
@@ -488,9 +521,15 @@ status_t CameraHardware::startPreview()
     return NO_ERROR;
 }
 
-void CameraHardware::stopPreview()
+void CameraHardware::stopPreview() {
+    LOGE("-----stop Preview");
+    mPreviewRequestStop = true;
+    return;
+}
+
+void CameraHardware::st_stopPreview()
 {
-    LOGE("-----stop Preview enter");
+    LOGE("-----the st stop Preview enter");
     sp<PreviewThread> previewThread;
     { /* scope for the lock */
         Mutex::Autolock lock(mPreviewLock);
@@ -511,13 +550,13 @@ void CameraHardware::stopPreview()
 
     Mutex::Autolock lock(mPreviewLock);
     mPreviewThread.clear();
-    LOGE("-----stop Preview exit");
+    LOGE("-----st stop Preview exit");
     return;
 }
 
 bool CameraHardware::previewEnabled()
 {
-    return mPreviewThread != 0;
+    return !mPreviewRequestStop;
 }
 
 status_t CameraHardware::startRecording()
@@ -613,6 +652,15 @@ int CameraHardware::pictureThread()
     char devnode[12];
     camera_memory_t* picture = NULL;
 
+    if(previewStopped == false) {
+        LOGD("HACK: not stopping preview, while taking picture");
+        // wait for picture to get captured
+        while (mTakePicture) {
+            usleep(5000);
+        }
+        return NO_ERROR;
+    }
+
     LOGE("Picture Thread:%d",mMsgEnabled);
    // if (mMsgEnabled & CAMERA_MSG_SHUTTER) {
      //   mNotifyCb(CAMERA_MSG_SHUTTER, 0, 0, mCallbackCookie);
@@ -671,12 +719,16 @@ int CameraHardware::pictureThread()
     mCamera->StopStreaming();
     mCamera->Close();
 
+    /* picture taken */
+    mTakePicture = false;
     return NO_ERROR;
 }
 
 status_t CameraHardware::takePicture()
 {
     LOGE("-----Take picture");
+    LOGE("-----HACK: not stopping preview");
+    mTakePicture = true;
     stopPreview();
     pictureThread();
     return NO_ERROR;
@@ -684,6 +736,7 @@ status_t CameraHardware::takePicture()
 
 status_t CameraHardware::cancelPicture()
 {
+    mTakePicture = false;
     return NO_ERROR;
 }
 
@@ -775,6 +828,10 @@ status_t CameraHardware::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2)
 
 void CameraHardware::release()
 {
+    LOGD("%s:%d", __func__, __LINE__);
+
+    /* stop preview */
+    st_stopPreview();
 
 }
 
