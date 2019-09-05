@@ -21,6 +21,7 @@
 *
 */
 
+#define LOG_NDEBUG 0
 #include "CameraHal.h"
 #include "CameraProperties.h"
 

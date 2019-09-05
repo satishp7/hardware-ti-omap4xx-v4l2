@@ -3583,21 +3583,19 @@ status_t CameraHal::initialize(CameraProperties::Properties* properties)
         sensor_index = atoi(mCameraProperties->get(CameraProperties::CAMERA_SENSOR_INDEX));
         }
 
+#ifdef V4L_CAMERA_ADAPTER
     if (strcmp(CameraProperties::DEFAULT_VALUE, mCameraProperties->get(CameraProperties::CAMERA_NAME)) != 0 ) {
         sensor_name = mCameraProperties->get(CameraProperties::CAMERA_NAME);
     }
     CAMHAL_LOGDB("Sensor index= %d; Sensor name= %s", sensor_index, sensor_name);
 
     if (strcmp(sensor_name, V4L_CAMERA_NAME_USB) == 0) {
-#ifdef V4L_CAMERA_ADAPTER
         mCameraAdapter = V4LCameraAdapter_Factory(sensor_index);
-#endif
     }
-    else {
+#endif
 #ifdef OMX_CAMERA_ADAPTER
-        mCameraAdapter = OMXCameraAdapter_Factory(sensor_index);
+    mCameraAdapter = OMXCameraAdapter_Factory(sensor_index);
 #endif
-    }
 
     if ( ( NULL == mCameraAdapter ) || (mCameraAdapter->initialize(properties)!=NO_ERROR))
         {

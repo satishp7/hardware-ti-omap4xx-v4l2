@@ -20,6 +20,8 @@
 * This file maps the CameraHardwareInterface to the Camera interfaces on OMAP4 (mainly OMX).
 *
 */
+#define LOG_TAG "CameraService"
+#define LOG_NDEBUG 0
 
 //#include "CameraHal.h"
 #include <utils/threads.h>
@@ -50,7 +52,7 @@ CameraProperties::CameraProperties() : mCamerasSupported(0)
 {
     LOG_FUNCTION_NAME;
 
-    mCamerasSupported = 0;
+    mCamerasSupported = 1;
     mInitialized = 0;
 
     LOG_FUNCTION_NAME_EXIT;
@@ -104,6 +106,7 @@ status_t CameraProperties::loadProperties()
     const status_t err = CameraAdapter_Capabilities(mCameraProps, mCamerasSupported,
             MAX_CAMERAS_SUPPORTED, mCamerasSupported);
 
+    //mCamerasSupported = 1;
     if(err != NO_ERROR) {
         LOGE("error while getting capabilities");
         ret = UNKNOWN_ERROR;

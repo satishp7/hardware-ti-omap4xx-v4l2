@@ -1184,9 +1184,13 @@ void detectVideoDevice(char** video_device_list, int& num_device) {
         while ((dir = readdir(d)) != NULL) {
             filename = dir->d_name;
             if (strncmp(filename, DEVICE_NAME, 5) == 0) {
-                strcpy(dev_list[index],DEVICE_PATH);
-                strncat(dev_list[index],filename,sizeof(DEVICE_NAME));
+                CAMHAL_LOGDB("HACK: filename = %s", filename);
+                //strcpy(dev_list[index],DEVICE_PATH);
+                //strncat(dev_list[index],filename,sizeof(DEVICE_NAME));
+                strcpy(dev_list[index],"/dev/video0");
+                CAMHAL_LOGDB("HACK: devlist[%d] = %s", index, dev_list[index]);
                 index++;
+                break;
             }
        } //end of while()
        closedir(d);
@@ -1246,7 +1250,7 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
         video_device_list[i] = device_list[i];
     }
     //look for the connected video devices
-    detectVideoDevice(video_device_list, num_v4l_devices);
+    detectVideoDevice(video_device_list, &num_v4l_devices);
 
     for (int i = 0; i < num_v4l_devices; i++) {
         if ( (starting_camera + num_cameras_supported) < max_camera) {
