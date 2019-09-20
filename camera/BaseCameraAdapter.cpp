@@ -386,7 +386,7 @@ void BaseCameraAdapter::returnFrame(CameraBuffer * frameBuf, CameraFrame::FrameT
         //check if someone is holding this buffer
         if ( 0 == refCount )
             {
-#ifdef CAMERAHAL_DEBUG
+#if 0 //def CAMERAHAL_DEBUG
             if((mBuffersWithDucati.indexOfKey((int)camera_buffer_get_omx_ptr(frameBuf)) >= 0) &&
                ((CameraFrame::PREVIEW_FRAME_SYNC == frameType) ||
                  (CameraFrame::SNAPSHOT_FRAME == frameType)))
