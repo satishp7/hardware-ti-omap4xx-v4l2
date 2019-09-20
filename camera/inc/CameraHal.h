@@ -147,6 +147,10 @@ extern const char * const kYuvImagesOutputDirPath;
 #define OMX_CAMERA_NAME_OV      "OV5640"
 #define OMX_CAMERA_NAME_SONY    "IMX060"
 
+typedef struct {
+    size_t width;
+    size_t height;
+} supported_resolution;
 
 ///Forward declarations
 class CameraHal;
@@ -1173,7 +1177,7 @@ public:
 
     /** Set the camera parameters. */
     int    setParameters(const char* params);
-    int    setParameters(const CameraParameters& params);
+    int    setParameters(CameraParameters& params);
 
     /** Return the camera parameters. */
     char*  getParameters();
@@ -1332,7 +1336,12 @@ private:
     // Internal __takePicture function - used in public takePicture() and reprocess()
     int   __takePicture(const char* params);
     //@}
-
+    static const char supportedPictureSizes[];
+    static const char supportedPreviewSizes[];
+    static const char supportedVideoSizes[];
+    static const char supportedPreviewFpsRange[];
+    static const supported_resolution supportedPreviewRes[];
+    static const supported_resolution supportedPictureRes[];
 
 /*----------Member variables - Public ---------------------*/
 public:
@@ -1359,8 +1368,6 @@ public:
     sp<DisplayAdapter> mBufferSourceAdapter_In;
     sp<DisplayAdapter> mBufferSourceAdapter_Out;
 
-    sp<IMemoryHeap> mPictureHeap;
-
     int* mGrallocHandles;
     bool mFpsRangeChangedByApp;
 
@@ -1373,6 +1380,7 @@ public:
 ///static member vars
 
     static const int SW_SCALING_FPS_LIMIT;
+    static const int DEFAULT_FRAMERATE;
 
 #if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
 

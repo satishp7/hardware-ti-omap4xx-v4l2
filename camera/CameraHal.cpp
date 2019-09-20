@@ -21,6 +21,7 @@
 *
 */
 
+//#define LOG_NDEBUG 0
 #include "CameraHal.h"
 #include "ANativeWindowDisplayAdapter.h"
 #include "BufferSourceAdapter.h"
@@ -30,6 +31,9 @@
 
 #include <poll.h>
 #include <math.h>
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#define __V4L2_CHANGE__
 
 namespace android {
 
@@ -42,9 +46,20 @@ extern "C" CameraAdapter* V4LCameraAdapter_Factory(size_t);
 ////@todo Have a CameraProperties class to store these parameters as constants for every camera
 ////       Currently, they are hard-coded
 
+/* satish : 29/12/10 : preview/picture size validation logic */
+const char CameraHal::supportedPictureSizes [] = "640x480,352x288,320x240";
+const char CameraHal::supportedPreviewSizes [] = "640x480,352x288,320x240";
+const char CameraHal::supportedVideoSizes [] = "640x480";
+
+const char CameraHal::supportedPreviewFpsRange [] = "(8000,30000),(15000,25000),(20000,30000)";
+
+const supported_resolution CameraHal::supportedPictureRes[] = { {640, 480}, {352, 288}, {320, 240} };
+const supported_resolution CameraHal::supportedPreviewRes[] = { {640, 480}, {352, 288}, {320, 240} };
+
 const int CameraHal::NO_BUFFERS_PREVIEW = MAX_CAMERA_BUFFERS;
 const int CameraHal::NO_BUFFERS_IMAGE_CAPTURE = 5;
 const int CameraHal::SW_SCALING_FPS_LIMIT = 15;
+const int CameraHal::DEFAULT_FRAMERATE = 30;
 
 const uint32_t MessageNotifier::EVENT_BIT_FIELD_POSITION = 16;
 
@@ -138,7 +153,6 @@ void CameraHal::setCallbacks(camera_notify_callback notify_cb,
 void CameraHal::enableMsgType(int32_t msgType)
 {
     LOG_FUNCTION_NAME;
-
     if ( ( msgType & CAMERA_MSG_SHUTTER ) && ( !mShutterEnabled ) )
         {
         msgType &= ~CAMERA_MSG_SHUTTER;
@@ -246,6 +260,34 @@ int CameraHal::setParameters(const char* parameters)
 
     return setParameters(params);
 }
+
+#ifdef __V4L2_CHANGE__
+
+status_t CameraHal::setParameters(CameraParameters& params)
+{
+    Mutex::Autolock lock(mLock);
+    int width  = 0;
+    int height = 0;
+    int framerate = 0;
+
+    params.setPreviewSize(640,480);
+    params.setPictureSize(640,480);
+    params.setPreviewFrameRate(CameraHal::DEFAULT_FRAMERATE);
+    params.getPreviewFormat();
+
+    framerate = params.getPreviewFrameRate();
+    LOGD("FRAMERATE %d", framerate);
+    mParameters = params;
+
+    mParameters.getPictureSize(&width, &height);
+    mParameters.getPreviewSize(&width, &height);
+
+    LOGD("Preview Resolution by CamHAL %d x %d", width, height);
+
+    return NO_ERROR;
+}
+
+#else
 
 /**
    @brief Set the camera parameters.
@@ -1217,6 +1259,7 @@ int CameraHal::setParameters(const CameraParameters& params)
 
     return ret;
 }
+#endif //__V4L2_CHANGE__
 
 status_t CameraHal::allocPreviewBufs(int width, int height, const char* previewFormat,
                                         unsigned int buffercount, unsigned int &max_queueable)
@@ -1431,6 +1474,7 @@ status_t CameraHal::allocVideoBufs(uint32_t width, uint32_t height, uint32_t buf
         GraphicBufferAllocator &GrallocAlloc = GraphicBufferAllocator::get();
         buffer_handle_t handle;
         ret = GrallocAlloc.alloc(width, height, HAL_PIXEL_FORMAT_NV12, CAMHAL_GRALLOC_USAGE, &handle, &stride);
+        // ret = GrallocAlloc.alloc(width, height, HAL_PIXEL_FORMAT_RGB_565, CAMHAL_GRALLOC_USAGE, &handle, &stride);
         if (ret != NO_ERROR){
           CAMHAL_LOGEA("Couldn't allocate video buffers using Gralloc");
           ret = -NO_MEMORY;
@@ -3665,6 +3709,9 @@ status_t CameraHal::initialize(CameraProperties::Properties* properties)
         CAMHAL_LOGEA("Failed to set default parameters?!");
         }
 
+    /* [satish]: set parameters to adapter */
+    mCameraAdapter->setParameters(mParameters);
+
     // register for sensor events
     mSensorListener = new SensorListener();
     if (mSensorListener.get()) {
@@ -3958,6 +4005,8 @@ void CameraHal::initDefaultParameters()
     //Purpose of this function is to initialize the default current and supported parameters for the currently
     //selected camera.
 
+#ifndef __V4L2_CHANGE__
+
     CameraParameters &p = mParameters;
     int currentRevision, adapterRevision;
     status_t ret = NO_ERROR;
@@ -4067,7 +4116,40 @@ void CameraHal::initDefaultParameters()
     p.set(TICameraParameters::KEY_ALGO_THREELINCOLORMAP, CameraParameters::TRUE);
     p.set(TICameraParameters::KEY_ALGO_GIC, CameraParameters::TRUE);
 
-    LOG_FUNCTION_NAME_EXIT;
+#else
+
+    CameraParameters &p = mParameters;
+
+    p.setPreviewSize(MIN_WIDTH, MIN_HEIGHT);
+    p.setPreviewFrameRate(CameraHal::DEFAULT_FRAMERATE);
+    //p.setPreviewFormat(CameraParameters::PIXEL_FORMAT_RGB565);
+    p.setPreviewFormat(CameraParameters::PIXEL_FORMAT_YUV420SP);
+
+    p.setPictureSize(MIN_WIDTH, MIN_HEIGHT);
+    p.setPictureFormat(CameraParameters::PIXEL_FORMAT_JPEG);
+    p.set(CameraParameters::KEY_JPEG_QUALITY, 100);
+    p.set("picture-size-values", CameraHal::supportedPictureSizes);
+
+    p.set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, CameraHal::supportedPictureSizes);
+    p.set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS, CameraParameters::PIXEL_FORMAT_JPEG);
+    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, CameraHal::supportedPreviewSizes);
+    //p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, CameraParameters::PIXEL_FORMAT_RGB565);
+    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, CameraParameters::PIXEL_FORMAT_YUV420SP);
+    p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar");
+    //p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_COLOR_Format16bitRGB565");
+    //p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, CameraParameters::PIXEL_FORMAT_RGB565);
+    p.set(CameraParameters::KEY_FOCUS_MODE,CameraParameters::FOCUS_MODE_INFINITY);
+
+    // emulated values
+    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE, CameraHal::supportedPreviewFpsRange);
+    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES, "15,25,30");
+    p.set(CameraParameters::KEY_VIDEO_SIZE, CameraHal::supportedVideoSizes);
+    mVideoWidth = MIN_WIDTH;
+    mVideoHeight = MIN_HEIGHT;
+    p.set(TICameraParameters::KEY_SENSOR_ORIENTATION, 0);
+
+#endif //__V4L2_CHANGE__
+
 }
 
 /**
