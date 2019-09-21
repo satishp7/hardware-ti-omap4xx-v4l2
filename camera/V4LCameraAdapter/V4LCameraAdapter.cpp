@@ -20,7 +20,7 @@
 * This file maps the Camera Hardware Interface to V4L2.
 *
 */
-
+#define LOG_NDEBUG 0
 
 #include "V4LCameraAdapter.h"
 #include "CameraHal.h"
@@ -48,6 +48,7 @@ static int mDebugFps = 0;
 #define Q16_OFFSET 16
 
 #define HERE(Msg) {CAMHAL_LOGEB("--=== %s===--\n", Msg);}
+//#define HERE(Msg) {LOGD("--=== %s===--\n", Msg);}
 
 namespace android {
 
@@ -59,10 +60,17 @@ namespace android {
 //#define DUMP_CAPTURE_FRAME 1
 //#define PPM_PER_FRAME_CONVERSION 1
 
+//#define LOAD_RAW_FILE
+#ifdef LOAD_RAW_FILE
+int LoadRawFile(unsigned char* buff, int buff_size);
+unsigned char* nv12_raw_buff = NULL;
+#endif //LOAD_RAW_FILE
+
 //Proto Types
 static void convertYUV422i_yuyvTouyvy(uint8_t *src, uint8_t *dest, size_t size );
-static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, int width, int height );
+static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, int width, int height, int stride);
 static void convertYUV422ToNV12(unsigned char *src, unsigned char *dest, int width, int height );
+static void convertYUYVtoRGB565(unsigned char *buf, unsigned char *rgb, int width, int height);
 
 Mutex gV4LAdapterLock;
 char device[15];
@@ -120,9 +128,9 @@ status_t V4LCameraAdapter::v4lInitMmap(int& count) {
                mCameraHandle,
                mVideoInfo->buf.m.offset);
 
-        CAMHAL_LOGVB(" mVideoInfo->mem[%d]=%p ; mVideoInfo->buf.length = %d", i, mVideoInfo->mem[i], mVideoInfo->buf.length);
+        LOGD(" mVideoInfo->mem[%d]=%p ; mVideoInfo->buf.length = %d", i, mVideoInfo->mem[i], mVideoInfo->buf.length);
         if (mVideoInfo->mem[i] == MAP_FAILED) {
-            CAMHAL_LOGEB("Unable to map buffer [%d]. (%s)", i, strerror(errno));
+            LOGD("Unable to map buffer [%d]. (%s)", i, strerror(errno));
             return -1;
         }
     }
@@ -138,7 +146,7 @@ status_t V4LCameraAdapter::v4lInitUsrPtr(int& count) {
 
     ret = v4lIoctl(mCameraHandle, VIDIOC_REQBUFS, &mVideoInfo->rb);
     if (ret < 0) {
-        CAMHAL_LOGEB("VIDIOC_REQBUFS failed for USERPTR: %s", strerror(errno));
+        LOGD("VIDIOC_REQBUFS failed for USERPTR: %s", strerror(errno));
         return ret;
     }
 
@@ -182,7 +190,7 @@ status_t V4LCameraAdapter::v4lStopStreaming (int nBufferCount) {
         mVideoInfo->buf.memory = V4L2_MEMORY_MMAP;
         for (int i = 0; i < nBufferCount; i++) {
             if (munmap(mVideoInfo->mem[i], mVideoInfo->buf.length) < 0) {
-                CAMHAL_LOGEA("munmap() failed");
+                LOGD("munmap() failed");
             }
         }
 
@@ -193,7 +201,7 @@ status_t V4LCameraAdapter::v4lStopStreaming (int nBufferCount) {
 
         ret = v4lIoctl(mCameraHandle, VIDIOC_REQBUFS, &mVideoInfo->rb);
         if (ret < 0) {
-            CAMHAL_LOGEB("VIDIOC_REQBUFS failed: %s", strerror(errno));
+            LOGD("VIDIOC_REQBUFS failed: %s", strerror(errno));
             goto EXIT;
         }
     }
@@ -209,7 +217,6 @@ status_t V4LCameraAdapter::v4lSetFormat (int width, int height, uint32_t pix_for
     if (ret < 0) {
         CAMHAL_LOGEB("VIDIOC_G_FMT Failed: %s", strerror(errno));
     }
-
     mVideoInfo->width = width;
     mVideoInfo->height = height;
     mVideoInfo->framesizeIn = (width * height << 1);
@@ -218,7 +225,7 @@ status_t V4LCameraAdapter::v4lSetFormat (int width, int height, uint32_t pix_for
     mVideoInfo->format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     mVideoInfo->format.fmt.pix.width = width;
     mVideoInfo->format.fmt.pix.height = height;
-    mVideoInfo->format.fmt.pix.pixelformat = pix_format;
+    mVideoInfo->format.fmt.pix.pixelformat = DEFAULT_PIXEL_FORMAT; //pix_format;
 
     ret = v4lIoctl(mCameraHandle, VIDIOC_S_FMT, &mVideoInfo->format);
     if (ret < 0) {
@@ -260,7 +267,7 @@ status_t V4LCameraAdapter::restartPreview ()
     streamParams.parm.capture.timeperframe.numerator= 1;
     ret = v4lIoctl(mCameraHandle, VIDIOC_S_PARM, &streamParams);
     if (ret < 0) {
-        CAMHAL_LOGEB("VIDIOC_S_PARM Failed: %s", strerror(errno));
+        LOGD("VIDIOC_S_PARM Failed: %s", strerror(errno));
         goto EXIT;
     }
 
@@ -272,7 +279,7 @@ status_t V4LCameraAdapter::restartPreview ()
 
         ret = v4lIoctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
         if (ret < 0) {
-            CAMHAL_LOGEA("VIDIOC_QBUF Failed");
+            LOGD("VIDIOC_QBUF Failed");
             goto EXIT;
         }
         nQueued++;
@@ -346,7 +353,7 @@ status_t V4LCameraAdapter::fillThisBuffer(CameraBuffer *frameBuf, CameraFrame::F
     if ( frameType == CameraFrame::IMAGE_FRAME) { //(1 > mCapturedFrames)
         // Signal end of image capture
         if ( NULL != mEndImageCaptureCallback) {
-            CAMHAL_LOGDB("===========Signal End Image Capture==========");
+            LOGD("===========Signal End Image Capture==========");
             mEndImageCaptureCallback(mEndCaptureData);
         }
         goto EXIT;
@@ -357,7 +364,7 @@ status_t V4LCameraAdapter::fillThisBuffer(CameraBuffer *frameBuf, CameraFrame::F
 
     idx = mPreviewBufs.valueFor(frameBuf);
     if(idx < 0) {
-        CAMHAL_LOGEB("Wrong index  = %d",idx);
+        LOGD("Wrong index  = %d",idx);
         goto EXIT;
     }
 
@@ -367,7 +374,7 @@ status_t V4LCameraAdapter::fillThisBuffer(CameraBuffer *frameBuf, CameraFrame::F
 
     ret = v4lIoctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
     if (ret < 0) {
-       CAMHAL_LOGEA("VIDIOC_QBUF Failed");
+       LOGD("VIDIOC_QBUF Failed");
        goto EXIT;
     }
      nQueued++;
@@ -394,6 +401,7 @@ status_t V4LCameraAdapter::setParameters(const CameraParameters &params)
             CAMHAL_LOGEB(" VIDIOC_S_FMT Failed: %s", strerror(errno));
             goto EXIT;
         }
+#if 0        
         //set frame rate
         // Now its fixed to 30 FPS
         streamParams.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -408,6 +416,7 @@ status_t V4LCameraAdapter::setParameters(const CameraParameters &params)
         }
         int actualFps = streamParams.parm.capture.timeperframe.denominator / streamParams.parm.capture.timeperframe.numerator;
         CAMHAL_LOGDB("Actual FPS set is : %d.", actualFps);
+#endif 
     }
 
     // Udpate the current parameter set
@@ -481,7 +490,7 @@ status_t V4LCameraAdapter::UseBuffersCapture(CameraBuffer *bufArr, int num) {
     for (int i = 0; i < num; i++) {
         //Associate each Camera internal buffer with the one from Overlay
         mCaptureBufs.add(&bufArr[i], i);
-        CAMHAL_LOGDB("capture- buff [%d] = 0x%x ",i, mCaptureBufs.keyAt(i));
+        LOGD("capture- buff [%d] = 0x%x ",i, mCaptureBufs.keyAt(i));
     }
 
     // Update the preview buffer count
@@ -531,7 +540,7 @@ status_t V4LCameraAdapter::takePicture() {
     LOG_FUNCTION_NAME;
 
     Mutex::Autolock lock(mCaptureBufsLock);
-
+    LOGD("takePicture");
     if(mCapturing) {
         CAMHAL_LOGEA("Already Capture in Progress...");
         ret = BAD_VALUE;
@@ -540,6 +549,11 @@ status_t V4LCameraAdapter::takePicture() {
 
     mCapturing = true;
     mPreviewing = false;
+    mParams.getPictureSize(&width, &height);
+    LOGD("Image Capture Size WxH = %dx%d",width,height);
+    yuv422i_buff_size = width * height * 2;
+
+#if 0
 
     // Stop preview streaming
     ret = v4lStopStreaming(mPreviewBufferCount);
@@ -587,7 +601,7 @@ status_t V4LCameraAdapter::takePicture() {
     }
 
     CAMHAL_LOGDA("Streaming started for Image Capture");
-
+#endif
     //get the frame and send to encode as JPG
     fp = this->GetFrame(index);
     if(!fp) {
@@ -596,29 +610,29 @@ status_t V4LCameraAdapter::takePicture() {
         goto EXIT;
     }
 
-    CAMHAL_LOGDA("::Capture Frame received from V4L::");
-    buffer = mCaptureBufs.keyAt(index);
-    CAMHAL_LOGVB("## captureBuf[%d] = 0x%x, yuv422i_buff_size=%d", index, buffer->opaque, yuv422i_buff_size);
-
-    //copy the yuv422i data to the image buffer.
-    memcpy(buffer->opaque, fp, yuv422i_buff_size);
+    CAMHAL_LOGDA("::Capture Frame from V4L::%d, mCaptureBufferCount:%d", index, mCaptureBufferCount);
 
 #ifdef DUMP_CAPTURE_FRAME
     //dump the YUV422 buffer in to a file
     //a folder should have been created at /data/misc/camera/raw/
     {
         int fd =-1;
-        fd = open("/data/misc/camera/raw/captured_yuv422i_dump.yuv", O_CREAT | O_WRONLY | O_SYNC | O_TRUNC, 0777);
+        fd = open("/mnt/sdcard/captured_yuv422i_dump.yuv", O_CREAT | O_WRONLY | O_SYNC | O_TRUNC, 0777);
         if(fd < 0) {
-            CAMHAL_LOGEB("Unable to open file: %s",  strerror(fd));
+            LOGD("Unable to open file: %s",  strerror(fd));
         }
         else {
             write(fd, fp, yuv422i_buff_size );
             close(fd);
-            CAMHAL_LOGDB("::Captured Frame dumped at /data/misc/camera/raw/captured_yuv422i_dump.yuv::");
+            LOGD("::Captured Frame dumped at /data/misc/camera/raw/captured_yuv422i_dump.yuv::");
         }
     }
 #endif
+    buffer = mCaptureBufs.keyAt(0);
+    LOGD("## captureBuf[%d] = 0x%x, yuv422i_buff_size=%d", index, buffer->opaque, yuv422i_buff_size);
+
+    //copy the yuv422i data to the image buffer.
+    memcpy(buffer->opaque, fp, yuv422i_buff_size);
 
     CAMHAL_LOGDA("::sending capture frame to encoder::");
     frame.mFrameType = CameraFrame::IMAGE_FRAME;
@@ -631,7 +645,7 @@ status_t V4LCameraAdapter::takePicture() {
     frame.mTimestamp = systemTime(SYSTEM_TIME_MONOTONIC);
     frame.mFrameMask = (unsigned int)CameraFrame::IMAGE_FRAME;
     frame.mQuirks |= CameraFrame::ENCODE_RAW_YUV422I_TO_JPEG;
-    frame.mQuirks |= CameraFrame::FORMAT_YUV422I_YUYV;
+    frame.mQuirks |= CameraFrame::FORMAT_YUV422I_UYVY;
 
     ret = setInitFrameRefCount(frame.mBuffer, frame.mFrameMask);
     if (ret != NO_ERROR) {
@@ -639,6 +653,8 @@ status_t V4LCameraAdapter::takePicture() {
     } else {
         ret = sendFrameToSubscribers(&frame);
     }
+
+#if 0
 
     // Stop streaming after image capture
     ret = v4lStopStreaming(mCaptureBufferCount);
@@ -648,6 +664,15 @@ status_t V4LCameraAdapter::takePicture() {
     }
 
     ret = restartPreview();
+
+#else
+
+    //Update the flag to indicate we are previewing
+    mPreviewing = true;
+    mCapturing = false;
+
+#endif
+
 EXIT:
     LOG_FUNCTION_NAME_EXIT;
     return ret;
@@ -719,6 +744,17 @@ status_t V4LCameraAdapter::startPreview()
     mCapturing = false;
 
 EXIT:
+
+#ifdef LOAD_RAW_FILE
+    int bsize = 640*480*3/2;
+    nv12_raw_buff = (unsigned char*) malloc(bsize);
+    if (nv12_raw_buff == NULL)
+        LOGD("HACK19: issue with buffer allocation");
+    else
+        bsize = LoadRawFile(nv12_raw_buff, bsize);
+    LOGD("HACK19: loaded size:%d", bsize);
+#endif
+
     LOG_FUNCTION_NAME_EXIT;
     return ret;
 }
@@ -749,6 +785,11 @@ status_t V4LCameraAdapter::stopPreview()
 
     mPreviewThread->requestExitAndWait();
     mPreviewThread.clear();
+
+#ifdef LOAD_RAW_FILE
+    if (nv12_raw_buff != NULL)
+        free(nv12_raw_buff);
+#endif //LOAD_RAW_FILE
 
     LOG_FUNCTION_NAME_EXIT;
     return ret;
@@ -918,9 +959,58 @@ static void convertYUV422i_yuyvTouyvy(uint8_t *src, uint8_t *dest, size_t size )
     LOG_FUNCTION_NAME_EXIT;
 }
 
-static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, int width, int height ) {
+static void yuv_to_rgb16(unsigned char y, unsigned char u, unsigned char v, unsigned char *rgb)
+{
+    int r,g,b;
+    int z;
+    int rgb16;
+
+    z = 0;
+
+    r = 1.164 * (y - 16) + 1.596 * (v - 128);
+    g = 1.164 * (y - 16) - 0.813 * (v - 128) - 0.391 * (u -128);
+    b = 1.164 * (y - 16) + 2.018 * (u - 128);
+
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
+
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
+
+    rgb16 = (int)(((r >> 3)<<11) | ((g >> 2) << 5)| ((b >> 3) << 0));
+
+    *rgb = (unsigned char)(rgb16 & 0xFF);
+    rgb++;
+    *rgb = (unsigned char)((rgb16 & 0xFF00) >> 8);
+
+}
+
+
+static void convertYUYVtoRGB565(unsigned char *buf, unsigned char *rgb, int width, int height)
+{
+    int x,y,z=0;
+    int blocks;
+
+    blocks = (width * height) * 2;
+
+    for (y = 0; y < blocks; y+=4) {
+        unsigned char Y1, Y2, U, V;
+
+        U = buf[y + 0];
+        Y1 = buf[y + 1];
+        V = buf[y + 2];
+        Y2 = buf[y + 3];
+
+        yuv_to_rgb16(Y1, U, V, &rgb[y]);
+        yuv_to_rgb16(Y2, U, V, &rgb[y + 2]);
+    }
+
+}
+
+static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, int width, int height, int stride ) {
     //convert YUV422I to YUV420 NV12 format and copies directly to preview buffers (Tiler memory).
-    int stride = 4096;
     unsigned char *bf = src;
     unsigned char *dst_y = dest;
     unsigned char *dst_uv = dest + ( height * stride);
@@ -932,7 +1022,9 @@ static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, in
 
     LOG_FUNCTION_NAME;
 
-    if (width % 16 ) {
+    //if (width % 16 ) {
+    bf++;
+    if (1 ) {
         for(int i = 0; i < height; i++) {
             for(int j = 0; j < width; j++) {
                 *dst_y = *bf;
@@ -943,7 +1035,7 @@ static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, in
         }
 
         bf = src;
-        bf++;  //UV sample
+        //bf++;  //UV sample
         for(int i = 0; i < height/2; i++) {
             for(int j=0; j<width; j++) {
                 *dst_uv = *bf;
@@ -1065,6 +1157,29 @@ static void convertYUV422ToNV12(unsigned char *src, unsigned char *dest, int wid
     LOG_FUNCTION_NAME_EXIT;
 }
 
+#ifdef LOAD_RAW_FILE
+int LoadRawFile(unsigned char* buff, int buff_size) {
+    int      ret = 1;
+    int      fd = -1;
+    char     fn[256];
+
+    sprintf(fn, "/mnt/sdcard/output.yuv");
+    LOGD("Dumping nv12 frame to a file : %s.", fn);
+
+    fd = open(fn, O_RDONLY , 0777);
+    if(fd < 0) {
+        LOGE("Unable to open file %s: %s", fn, strerror(fd));
+        return 0;
+    }
+
+    ret = read(fd, buff, buff_size );
+    close(fd);
+    LOGD("HACK19: file loaded size:%d", ret);
+
+    return ret;
+}
+#endif // LOAD_RAW_FILE
+
 #ifdef SAVE_RAW_FRAMES
 void saveFile(unsigned char* buff, int buff_size) {
     static int      counter = 1;
@@ -1072,13 +1187,15 @@ void saveFile(unsigned char* buff, int buff_size) {
     char            fn[256];
 
     LOG_FUNCTION_NAME;
-    if (counter > 3) {
+    if (counter > 25 ) return;
+    if (counter < 10) {
+        counter++;
         return;
     }
     //dump nv12 buffer
     counter++;
-    sprintf(fn, "/data/misc/camera/raw/nv12_dump_%03d.yuv", counter);
-    CAMHAL_LOGEB("Dumping nv12 frame to a file : %s.", fn);
+    sprintf(fn, "/mnt/sdcard/nv12_dump_%03d.yuv", counter);
+    LOGD("Dumping nv12 frame to a file : %s.", fn);
 
     fd = open(fn, O_CREAT | O_WRONLY | O_SYNC | O_TRUNC, 0777);
     if(fd < 0) {
@@ -1131,8 +1248,12 @@ int V4LCameraAdapter::previewThread()
         y_uv[0] = (void*) lframe->mYuv[0];
         //y_uv[1] = (void*) lframe->mYuv[1];
         //y_uv[1] = (void*) (lframe->mYuv[0] + height*stride);
-        convertYUV422ToNV12Tiler ( (unsigned char*)fp, (unsigned char*)y_uv[0], width, height);
-        CAMHAL_LOGVB("##...index= %d.;camera buffer= 0x%x; y= 0x%x; UV= 0x%x.",index, buffer, y_uv[0], y_uv[1] );
+        convertYUV422ToNV12Tiler ( (unsigned char*)fp, (unsigned char*)y_uv[0], width, height, stride);
+		CAMHAL_LOGVB("##...index= %d.;camera buffer= 0x%x; y= 0x%x; UV= 0x%x.",index, buffer, y_uv[0], y_uv[1] );
+        
+#ifdef LOAD_RAW_FILE
+       memcpy(buffer->mapped, nv12_raw_buff,  width*height*3/2);
+#endif
 
 #ifdef SAVE_RAW_FRAMES
         unsigned char* nv12_buff = (unsigned char*) malloc(width*height*3/2);
@@ -1184,11 +1305,11 @@ void detectVideoDevice(char** video_device_list, int& num_device) {
         while ((dir = readdir(d)) != NULL) {
             filename = dir->d_name;
             if (strncmp(filename, DEVICE_NAME, 5) == 0) {
-                CAMHAL_LOGDB("HACK: filename = %s", filename);
+                LOGD("filename = %s", filename);
                 //strcpy(dev_list[index],DEVICE_PATH);
                 //strncat(dev_list[index],filename,sizeof(DEVICE_NAME));
                 strcpy(dev_list[index],"/dev/video0");
-                CAMHAL_LOGDB("HACK: devlist[%d] = %s", index, dev_list[index]);
+                LOGD("HACK: devlist[%d] = %s", index, dev_list[index]);
                 index++;
                 break;
             }
@@ -1241,7 +1362,7 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
     memset((void*)&cap, 0, sizeof(v4l2_capability));
 
     if (!properties_array) {
-        CAMHAL_LOGEB("invalid param: properties = 0x%p", properties_array);
+        LOGD("invalid param: properties = 0x%p", properties_array);
         LOG_FUNCTION_NAME_EXIT;
         return BAD_VALUE;
     }
@@ -1250,7 +1371,7 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
         video_device_list[i] = device_list[i];
     }
     //look for the connected video devices
-    detectVideoDevice(video_device_list, &num_v4l_devices);
+    detectVideoDevice(video_device_list, num_v4l_devices);
 
     for (int i = 0; i < num_v4l_devices; i++) {
         if ( (starting_camera + num_cameras_supported) < max_camera) {
@@ -1280,13 +1401,15 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
             properties = properties_array + starting_camera + num_cameras_supported;
 
             //fetch capabilities for this camera
+            //[TODO]: is it possible to get properties from driver itsself ??
+#if 1 //satish
             ret = V4LCameraAdapter::getCaps( sensorId, properties, tempHandle );
             if (ret < 0) {
                 CAMHAL_LOGEA("Error while getting capabilities.");
                 close(tempHandle);
                 continue;
             }
-
+#endif //satish
             num_cameras_supported++;
 
         }
@@ -1305,7 +1428,5 @@ EXIT:
 }
 
 };
-
-
 /*--------------------Camera Adapter Class ENDS here-----------------------------*/
 
