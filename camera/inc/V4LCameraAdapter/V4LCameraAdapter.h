@@ -27,7 +27,7 @@
 
 namespace android {
 
-#define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUYV
+#define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_UYVY
 
 #define NB_BUFFER 10
 #define DEVICE "/dev/videoxx"
