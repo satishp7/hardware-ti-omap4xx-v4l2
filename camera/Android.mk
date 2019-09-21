@@ -3,8 +3,8 @@ ifeq ($(TI_OMAP4_CAMERAHAL_VARIANT),)
 
 LOCAL_PATH:= $(call my-dir)
 
-OMAP4_CAMERA_HAL_USES:= OMX
-#OMAP4_CAMERA_HAL_USES:= USB
+#OMAP4_CAMERA_HAL_USES:= OMX
+OMAP4_CAMERA_HAL_USES:= USB
 #OMAP4_CAMERA_HAL_USES:= ALL
 
 ifdef TI_CAMERAHAL_DEBUG_ENABLED
@@ -157,6 +157,7 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/inc/V4LCameraAdapter \
     $(LOCAL_PATH)/../libtiutils \
     hardware/ti/omap4xxx/tiler \
+    hardware/ti/domx/mm_osal/inc \
     frameworks/base/include/ui \
     frameworks/base/include/utils \
     frameworks/base/include/media/stagefright \
