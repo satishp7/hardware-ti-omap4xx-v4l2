@@ -1022,9 +1022,9 @@ static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, in
 
     LOG_FUNCTION_NAME;
 
-    //if (width % 16 ) {
-    bf++;
-    if (1 ) {
+    bf++; // UYVY start with U/V
+
+    if (width % 16 ) {
         for(int i = 0; i < height; i++) {
             for(int j = 0; j < width; j++) {
                 *dst_y = *bf;
@@ -1034,8 +1034,8 @@ static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, in
             dst_y += (stride - width);
         }
 
-        bf = src;
-        //bf++;  //UV sample
+        bf = src; //UYVY start with U/V
+        //bf++;  //YUVY start with Y
         for(int i = 0; i < height/2; i++) {
             for(int j=0; j<width; j++) {
                 *dst_uv = *bf;
@@ -1057,10 +1057,10 @@ static void convertYUV422ToNV12Tiler(unsigned char *src, unsigned char *dest, in
                 "0: @ 16 pixel copy                                             \n\t"
                 "   vld2.8  {q0, q1} , [%[src]]! @ q0 = yyyy.. q1 = uvuv..      \n\t"
                 "                                @ now q0 = y q1 = uv           \n\t"
-                "   vst1.32   {d0,d1}, [%[dst_y]]!                              \n\t"
+                "   vst1.32   {d2,d3}, [%[dst_y]]!                              \n\t"
                 "   cmp    %[skip], #0                                          \n\t"
                 "   bne 1f                                                      \n\t"
-                "   vst1.32  {d2,d3},[%[dst_uv]]!                               \n\t"
+                "   vst1.32  {d0,d1},[%[dst_uv]]!                               \n\t"
                 "1: @ skip odd rows for UV                                      \n\t"
                 "   sub %[n], %[n], #16                                         \n\t"
                 "   cmp %[n], #16                                               \n\t"
