@@ -157,27 +157,27 @@ status_t CameraArea::checkArea(ssize_t top,
     }
 
     if ( ( CameraArea::WEIGHT_MIN > weight ) ||  ( CameraArea::WEIGHT_MAX < weight ) ) {
-        CAMHAL_LOGEB("Camera area weight is invalid %d", weight);
+        CAMHAL_LOGEB("Camera area weight is invalid %ld", weight);
         return -EINVAL;
     }
 
     if ( ( CameraArea::TOP > top ) || ( CameraArea::BOTTOM < top ) ) {
-        CAMHAL_LOGEB("Camera area top coordinate is invalid %d", top );
+        CAMHAL_LOGEB("Camera area top coordinate is invalid %ld", top );
         return -EINVAL;
     }
 
     if ( ( CameraArea::TOP > bottom ) || ( CameraArea::BOTTOM < bottom ) ) {
-        CAMHAL_LOGEB("Camera area bottom coordinate is invalid %d", bottom );
+        CAMHAL_LOGEB("Camera area bottom coordinate is invalid %ld", bottom );
         return -EINVAL;
     }
 
     if ( ( CameraArea::LEFT > left ) || ( CameraArea::RIGHT < left ) ) {
-        CAMHAL_LOGEB("Camera area left coordinate is invalid %d", left );
+        CAMHAL_LOGEB("Camera area left coordinate is invalid %ld", left );
         return -EINVAL;
     }
 
     if ( ( CameraArea::LEFT > right ) || ( CameraArea::RIGHT < right ) ) {
-        CAMHAL_LOGEB("Camera area right coordinate is invalid %d", right );
+        CAMHAL_LOGEB("Camera area right coordinate is invalid %ld", right );
         return -EINVAL;
     }
 
@@ -338,7 +338,7 @@ bool CameraArea::areAreasDifferent(Vector< sp<CameraArea> > &area1,
     }
 
     // not going to care about sorting order for now
-    for (int i = 0; i < area1.size(); i++) {
+    for (unsigned int i = 0; i < area1.size(); i++) {
         if (!area1.itemAt(i)->compare(area2.itemAt(i))) {
             return true;
         }
