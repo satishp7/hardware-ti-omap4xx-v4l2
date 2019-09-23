@@ -105,8 +105,8 @@ status_t CameraProperties::loadProperties()
     // adapter updates capabilities and we update camera count
     const status_t err = CameraAdapter_Capabilities(mCameraProps, mCamerasSupported,
             MAX_CAMERAS_SUPPORTED, mCamerasSupported);
-
-    //mCamerasSupported = 1;
+    //const status_t err = ret;
+    mCamerasSupported = 2;
     if(err != NO_ERROR) {
         LOGE("error while getting capabilities");
         ret = UNKNOWN_ERROR;
@@ -121,6 +121,7 @@ status_t CameraProperties::loadProperties()
 
         for (int i = 0; i < mCamerasSupported; i++) {
             mCameraProps[i].setSensorIndex(i);
+            mCameraProps[i].set(CameraProperties::CAMERA_NAME, "USBCAMERA");
             mCameraProps[i].dump();
         }
     }
