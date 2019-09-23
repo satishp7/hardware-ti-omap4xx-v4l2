@@ -62,7 +62,7 @@ void AppCallbackNotifier::EncoderDoneCb(void* main_jpeg, void* thumb_jpeg, Camer
     Encoder_libjpeg::params *main_param = NULL, *thumb_param = NULL;
     size_t jpeg_size;
     uint8_t* src = NULL;
-    CameraBuffer *camera_buffer;
+    CameraBuffer *camera_buffer = NULL;
     sp<Encoder_libjpeg> encoder = NULL;
 
     LOG_FUNCTION_NAME;
