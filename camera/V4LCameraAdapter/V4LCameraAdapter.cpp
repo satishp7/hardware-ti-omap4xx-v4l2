@@ -48,8 +48,8 @@ static int mDebugFps = 0;
 #define Q16_OFFSET 16
 
 #define HERE(Msg) {CAMHAL_LOGEB("--=== %s===--\n", Msg);}
-//#define HERE(Msg) {LOGD("--=== %s===--\n", Msg);}
-
+//#define CAMHAL_LOGEA LOGD
+//#define CAMHAL_LOGEB LOGD
 namespace android {
 
 //frames skipped before recalculating the framerate
@@ -73,7 +73,7 @@ static void convertYUV422ToNV12(unsigned char *src, unsigned char *dest, int wid
 static void convertYUYVtoRGB565(unsigned char *buf, unsigned char *rgb, int width, int height);
 
 Mutex gV4LAdapterLock;
-char device[15];
+char mDeviceList[MAX_V4L2_CAM][15];
 
 
 /*--------------------Camera Adapter Class STARTS here-----------------------------*/
@@ -309,7 +309,7 @@ status_t V4LCameraAdapter::initialize(CameraProperties::Properties* caps)
         goto EXIT;
     }
 
-    if ((mCameraHandle = open(device, O_RDWR) ) == -1) {
+    if ((mCameraHandle = open(mDeviceList[mCameraIndex], O_RDWR) ) == -1) {
         CAMHAL_LOGEB("Error while opening handle to V4L2 Camera: %s", strerror(errno));
         ret = BAD_VALUE;
         goto EXIT;
@@ -490,7 +490,7 @@ status_t V4LCameraAdapter::UseBuffersCapture(CameraBuffer *bufArr, int num) {
     for (int i = 0; i < num; i++) {
         //Associate each Camera internal buffer with the one from Overlay
         mCaptureBufs.add(&bufArr[i], i);
-        LOGD("capture- buff [%d] = 0x%x ",i, mCaptureBufs.keyAt(i));
+        LOGD("capture- buff [%d] = 0x%p ",i, mCaptureBufs.keyAt(i));
     }
 
     // Update the preview buffer count
@@ -629,7 +629,7 @@ status_t V4LCameraAdapter::takePicture() {
     }
 #endif
     buffer = mCaptureBufs.keyAt(0);
-    LOGD("## captureBuf[%d] = 0x%x, yuv422i_buff_size=%d", index, buffer->opaque, yuv422i_buff_size);
+    LOGD("## captureBuf[%d] = 0x%p, yuv422i_buff_size=%d", index, buffer->takePicture, yuv422i_buff_size);
 
     //copy the yuv422i data to the image buffer.
     memcpy(buffer->opaque, fp, yuv422i_buff_size);
@@ -749,10 +749,10 @@ EXIT:
     int bsize = 640*480*3/2;
     nv12_raw_buff = (unsigned char*) malloc(bsize);
     if (nv12_raw_buff == NULL)
-        LOGD("HACK19: issue with buffer allocation");
+        LOGD("issue with buffer allocation");
     else
         bsize = LoadRawFile(nv12_raw_buff, bsize);
-    LOGD("HACK19: loaded size:%d", bsize);
+    LOGD("loaded size:%d", bsize);
 #endif
 
     LOG_FUNCTION_NAME_EXIT;
@@ -918,6 +918,7 @@ V4LCameraAdapter::V4LCameraAdapter(size_t sensor_index)
 
     // Nothing useful to do in the constructor
     mFramesWithEncoder = 0;
+    mCameraIndex = sensor_index;
 
     LOG_FUNCTION_NAME_EXIT;
 }
@@ -1174,7 +1175,7 @@ int LoadRawFile(unsigned char* buff, int buff_size) {
 
     ret = read(fd, buff, buff_size );
     close(fd);
-    LOGD("HACK19: file loaded size:%d", ret);
+    LOGD("file loaded size:%d", ret);
 
     return ret;
 }
@@ -1250,7 +1251,7 @@ int V4LCameraAdapter::previewThread()
         //y_uv[1] = (void*) (lframe->mYuv[0] + height*stride);
         convertYUV422ToNV12Tiler ( (unsigned char*)fp, (unsigned char*)y_uv[0], width, height, stride);
 		CAMHAL_LOGVB("##...index= %d.;camera buffer= 0x%x; y= 0x%x; UV= 0x%x.",index, buffer, y_uv[0], y_uv[1] );
-        
+
 #ifdef LOAD_RAW_FILE
        memcpy(buffer->mapped, nv12_raw_buff,  width*height*3/2);
 #endif
@@ -1297,7 +1298,12 @@ void detectVideoDevice(char** video_device_list, int& num_device) {
     DIR *d;
     struct dirent *dir;
     int index = 0;
-
+    // [satish]: WHY ? - To maintain the consistency between app & HAL for cameraID.
+    // id 0 - back camera
+    // id 1 - front camera
+    // Below code scan video1 as first entry to id 0 becomes front camera,
+    // which we do not want at present, so hard cording the entries.
+#if 0
     strcpy(dir_path, DEVICE_PATH);
     d = opendir(dir_path);
     if(d) {
@@ -1306,21 +1312,32 @@ void detectVideoDevice(char** video_device_list, int& num_device) {
             filename = dir->d_name;
             if (strncmp(filename, DEVICE_NAME, 5) == 0) {
                 LOGD("filename = %s", filename);
-                //strcpy(dev_list[index],DEVICE_PATH);
-                //strncat(dev_list[index],filename,sizeof(DEVICE_NAME));
-                strcpy(dev_list[index],"/dev/video0");
-                LOGD("HACK: devlist[%d] = %s", index, dev_list[index]);
+                strcpy(dev_list[index],DEVICE_PATH);
+                strncat(dev_list[index],filename,sizeof(DEVICE_NAME));
+                //strcpy(dev_list[index],"/dev/video1");
+                LOGD("devlist[%d] = %s", index, dev_list[index]);
                 index++;
-                break;
+                //break;
             }
        } //end of while()
        closedir(d);
        num_device = index;
 
-       for(int i=0; i<index; i++){
+       for(int i=0; i< index && i < MAX_V4L2_CAM; i++){
            CAMHAL_LOGDB("Video device list::dev_list[%d]= %s",i,dev_list[i]);
        }
     }
+#else
+    for (unsigned int i =0; i <  MAX_V4L2_CAM; i++) {
+        snprintf(dev_list[i],15,"/dev/video%d",i);
+        index++;
+    }
+    num_device = index;
+
+    for(unsigned int i=0; i< index && i < MAX_V4L2_CAM; i++) {
+        CAMHAL_LOGDB("Video device list::dev_list[%d]= %s",i,dev_list[i]);
+    }
+#endif
 }
 
 extern "C" CameraAdapter* V4LCameraAdapter_Factory(size_t sensor_index)
@@ -1373,6 +1390,7 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
     //look for the connected video devices
     detectVideoDevice(video_device_list, num_v4l_devices);
 
+    CAMHAL_LOGDB("num_v4l_devices: %d, max_camera:%d, starting cam:%d",num_v4l_devices, max_camera, starting_camera);
     for (int i = 0; i < num_v4l_devices; i++) {
         if ( (starting_camera + num_cameras_supported) < max_camera) {
             sensorId = starting_camera + num_cameras_supported;
@@ -1396,13 +1414,16 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
                 close(tempHandle);
                 continue;
             }
-
-            strcpy(device, video_device_list[i]);
+            // copy device name to global variable, later we will use to open
+            // the device based on camera index.
+            if (i < MAX_V4L2_CAM)
+                strcpy(mDeviceList[i], video_device_list[i]);
             properties = properties_array + starting_camera + num_cameras_supported;
 
             //fetch capabilities for this camera
             //[TODO]: is it possible to get properties from driver itsself ??
 #if 1 //satish
+            LOGD("getcaps for sensor:%d", sensorId);
             ret = V4LCameraAdapter::getCaps( sensorId, properties, tempHandle );
             if (ret < 0) {
                 CAMHAL_LOGEA("Error while getting capabilities.");
@@ -1415,7 +1436,7 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
         }
         //For now exit this loop once a valid video capture device is found.
         //TODO: find all V4L capture devices and it capabilities
-        break;
+        //break;
     }//end of for() loop
 
     supportedCameras = num_cameras_supported;

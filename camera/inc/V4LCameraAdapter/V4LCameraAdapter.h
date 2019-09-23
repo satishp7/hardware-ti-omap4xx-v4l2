@@ -33,6 +33,7 @@ namespace android {
 #define DEVICE "/dev/videoxx"
 #define DEVICE_PATH "/dev/"
 #define DEVICE_NAME "videoxx"
+#define MAX_V4L2_CAM 2
 
 typedef int V4L_HANDLETYPE;
 
@@ -229,6 +230,8 @@ private:
     int nQueued;
     int nDequeued;
 
+    // 21/9: Keep track of cameraIndex
+    int mCameraIndex;
 };
 }; //// namespace
 #endif //V4L_CAMERA_ADAPTER_H
