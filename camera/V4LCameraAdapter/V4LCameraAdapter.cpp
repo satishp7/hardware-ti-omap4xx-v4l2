@@ -629,7 +629,7 @@ status_t V4LCameraAdapter::takePicture() {
     }
 #endif
     buffer = mCaptureBufs.keyAt(0);
-    LOGD("## captureBuf[%d] = 0x%p, yuv422i_buff_size=%d", index, buffer->takePicture, yuv422i_buff_size);
+    LOGD("## captureBuf[%d] = 0x%p, yuv422i_buff_size=%d", index, buffer->opaque, yuv422i_buff_size);
 
     //copy the yuv422i data to the image buffer.
     memcpy(buffer->opaque, fp, yuv422i_buff_size);
