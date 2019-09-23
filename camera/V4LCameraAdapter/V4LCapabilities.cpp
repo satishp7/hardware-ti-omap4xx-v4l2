@@ -44,7 +44,7 @@ static const char PARAM_SEP[] = ",";
 //Camera defaults
 const char V4LCameraAdapter::DEFAULT_PICTURE_FORMAT[] = "jpeg";
 const char V4LCameraAdapter::DEFAULT_PICTURE_SIZE[] = "640x480";
-const char V4LCameraAdapter::DEFAULT_PREVIEW_FORMAT[] = "rgb565";
+const char V4LCameraAdapter::DEFAULT_PREVIEW_FORMAT[] = "yuv420sp";
 const char V4LCameraAdapter::DEFAULT_PREVIEW_SIZE[] = "640x480";
 const char V4LCameraAdapter::DEFAULT_NUM_PREV_BUFS[] = "6";
 const char V4LCameraAdapter::DEFAULT_FRAMERATE[] = "30";
