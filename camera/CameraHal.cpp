@@ -3627,7 +3627,14 @@ status_t CameraHal::initialize(CameraProperties::Properties* properties)
         sensor_index = atoi(mCameraProperties->get(CameraProperties::CAMERA_SENSOR_INDEX));
         }
 
-#ifdef V4L_CAMERA_ADAPTER
+// [TODO]: To support OMX and V4L2 together, let get the Adapter based on
+// camera id
+// 0 = Back Camera
+// 1 = Front camera
+// Change  below condition if back camera is support on OMX
+// e.g if (sensor_index == 1 ) - for front on V4L2 and back on OMX
+//#ifdef V4L_CAMERA_ADAPTER
+if (sensor_index == 0 || sensor_index == 1)
     if (strcmp(CameraProperties::DEFAULT_VALUE, mCameraProperties->get(CameraProperties::CAMERA_NAME)) != 0 ) {
         sensor_name = mCameraProperties->get(CameraProperties::CAMERA_NAME);
     }
@@ -3636,10 +3643,11 @@ status_t CameraHal::initialize(CameraProperties::Properties* properties)
     if (strcmp(sensor_name, V4L_CAMERA_NAME_USB) == 0) {
         mCameraAdapter = V4LCameraAdapter_Factory(sensor_index);
     }
-#endif
-#ifdef OMX_CAMERA_ADAPTER
-    mCameraAdapter = OMXCameraAdapter_Factory(sensor_index);
-#endif
+//#endif
+//#ifdef OMX_CAMERA_ADAPTER
+    else
+        mCameraAdapter = OMXCameraAdapter_Factory(sensor_index);
+//#endif
 
     if ( ( NULL == mCameraAdapter ) || (mCameraAdapter->initialize(properties)!=NO_ERROR))
         {
