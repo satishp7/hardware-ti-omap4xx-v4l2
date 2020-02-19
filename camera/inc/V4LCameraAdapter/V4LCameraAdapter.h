@@ -27,12 +27,13 @@
 
 namespace android {
 
-#define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUYV
+#define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_UYVY
 
 #define NB_BUFFER 10
 #define DEVICE "/dev/videoxx"
 #define DEVICE_PATH "/dev/"
 #define DEVICE_NAME "videoxx"
+#define MAX_V4L2_CAM 2
 
 typedef int V4L_HANDLETYPE;
 
@@ -229,6 +230,8 @@ private:
     int nQueued;
     int nDequeued;
 
+    // 21/9: Keep track of cameraIndex
+    int mCameraIndex;
 };
 }; //// namespace
 #endif //V4L_CAMERA_ADAPTER_H

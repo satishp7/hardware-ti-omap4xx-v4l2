@@ -20,6 +20,7 @@
 * This file implements the V4L Capabilities feature.
 *
 */
+//#define LOG_NDEBUG 0
 
 #include "CameraHal.h"
 #include "V4LCameraAdapter.h"
@@ -36,23 +37,24 @@ namespace android {
 #define MAX_RES_STRING_LENGTH 10
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
+#define _NO_ENUM_FMT_SUPPORT_
 
 static const char PARAM_SEP[] = ",";
 
 //Camera defaults
 const char V4LCameraAdapter::DEFAULT_PICTURE_FORMAT[] = "jpeg";
 const char V4LCameraAdapter::DEFAULT_PICTURE_SIZE[] = "640x480";
-const char V4LCameraAdapter::DEFAULT_PREVIEW_FORMAT[] = "yuv422i-yuyv";
+const char V4LCameraAdapter::DEFAULT_PREVIEW_FORMAT[] = "yuv420sp";
 const char V4LCameraAdapter::DEFAULT_PREVIEW_SIZE[] = "640x480";
 const char V4LCameraAdapter::DEFAULT_NUM_PREV_BUFS[] = "6";
 const char V4LCameraAdapter::DEFAULT_FRAMERATE[] = "30";
-const char V4LCameraAdapter::DEFAULT_FOCUS_MODE[] = "infinity";
+const char V4LCameraAdapter::DEFAULT_FOCUS_MODE[] = "auto";
 const char * V4LCameraAdapter::DEFAULT_VSTAB = CameraParameters::FALSE;
 const char * V4LCameraAdapter::DEFAULT_VNF = CameraParameters::FALSE;
 
 
 const CapPixelformat V4LCameraAdapter::mPixelformats [] = {
-    { V4L2_PIX_FMT_YUYV, CameraParameters::PIXEL_FORMAT_YUV422I },
+    { V4L2_PIX_FMT_YUYV, CameraParameters::PIXEL_FORMAT_YUV422SP },
     { V4L2_PIX_FMT_JPEG, CameraParameters::PIXEL_FORMAT_JPEG },
 };
 
@@ -88,13 +90,14 @@ status_t V4LCameraAdapter::insertDefaults(CameraProperties::Properties* params, 
     params->set(CameraProperties::SUPPORTED_ANTIBANDING, "auto");
     params->set(CameraProperties::SUPPORTED_EFFECTS, "none");
     params->set(CameraProperties::SUPPORTED_IPP_MODES, "ldc-nsf");
-    params->set(CameraProperties::FACING_INDEX, TICameraParameters::FACING_FRONT);
+    params->set(CameraProperties::FACING_INDEX, TICameraParameters::FACING_BACK);
     params->set(CameraProperties::ORIENTATION_INDEX, 0);
     params->set(CameraProperties::SENSOR_ORIENTATION, "0");
     params->set(CameraProperties::VSTAB, DEFAULT_VSTAB);
     params->set(CameraProperties::VNF, DEFAULT_VNF);
 
-
+    // [satish]: default picture size, have to set in max as per driver support
+    params->set(CameraProperties::SUPPORTED_PICTURE_SIZES, "640x480");
     LOG_FUNCTION_NAME_EXIT;
 
     return ret;
@@ -113,7 +116,7 @@ status_t V4LCameraAdapter::insertPreviewFormats(CameraProperties::Properties* pa
             }
         }
     }
-    strncat(supported, CameraParameters::PIXEL_FORMAT_YUV420P, MAX_PROP_VALUE_LENGTH - 1);
+    strncat(supported, CameraParameters::PIXEL_FORMAT_RGB565, MAX_PROP_VALUE_LENGTH - 1);
     params->set(CameraProperties::SUPPORTED_PREVIEW_FORMATS, supported);
     return NO_ERROR;
 }
@@ -243,6 +246,35 @@ status_t V4LCameraAdapter::getCaps(const int sensorId, CameraProperties::Propert
      struct v4l2_frmsizeenum frmSizeEnum;
      struct v4l2_frmivalenum frmIvalEnum;
 
+     // Current S5k5baf driver does not support VIDIOC_ENUM_FMT to return
+     // supported values by driver. So setting it manually. At present
+     // VIDIOC_ENUM_FMT, call returns non-relevant values
+
+#ifdef _NO_ENUM_FMT_SUPPORT_ //satish
+
+    /* pixel format */
+    caps.ePreviewFormats[0]= V4L2_PIX_FMT_UYVY;
+
+    /* preview and capture size */
+    i = 0 ;
+    caps.tPreviewRes[i].width = 640;
+    caps.tPreviewRes[i].height = 480;
+    snprintf(caps.tPreviewRes[i].param, MAX_RES_STRING_LENGTH,"%dx%d",640, 480);
+
+    caps.tCaptureRes[i].width = 640;
+    caps.tCaptureRes[i].height = 480;
+    snprintf(caps.tCaptureRes[i].param, MAX_RES_STRING_LENGTH,"%dx%d",caps.tCaptureRes[i].width,caps.tCaptureRes[i].height);
+
+    caps.ulFrameRates[i] = 15;
+
+    i++;
+    caps.ulCaptureResCount = i;
+    caps.ulPreviewResCount = i;
+    caps.ulPreviewFormatCount = i;
+    caps.ulFrameRateCount = i;
+
+#else
+
     //get supported pixel formats
     for ( i = 0; status == NO_ERROR; i++) {
         fmtDesc.index = i;
@@ -335,6 +367,8 @@ status_t V4LCameraAdapter::getCaps(const int sensorId, CameraProperties::Propert
     snprintf(caps.tPreviewRes[0].param, MAX_RES_STRING_LENGTH,"%dx%d",caps.tPreviewRes[j].width,caps.tPreviewRes[j].height);
     caps.ulPreviewResCount = 1;
 */
+#endif //_NO_ENUM_FMT_SUPPORT_
+
     insertCapabilities (params, caps);
     return NO_ERROR;
 }
