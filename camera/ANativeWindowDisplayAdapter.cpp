@@ -46,6 +46,11 @@ OMX_COLOR_FORMATTYPE toOMXPixFormat(const char* parameters_format)
             CAMHAL_LOGDA("YUV420SP format selected");
             pixFormat = OMX_COLOR_FormatYUV420SemiPlanar;
             }
+        else if(strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_YUV422SP) == 0)
+            {
+            CAMHAL_LOGDA("YUV422SP format selected");
+            pixFormat = OMX_COLOR_FormatYUV422SemiPlanar;
+            }
         else if(strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_RGB565) == 0)
             {
             CAMHAL_LOGDA("RGB565 format selected");
@@ -95,7 +100,7 @@ const char* DisplayAdapter::getPixFormatConstant(const char* parameters_format) 
         }
         else
         {
-            CAMHAL_LOGEA("Invalid format, NV12 format selected as default");
+            CAMHAL_LOGEA("Invalid format, YUV420SP format selected as default");
             pixFormat = (const char *) CameraParameters::PIXEL_FORMAT_YUV420SP;
         }
     }
@@ -123,6 +128,10 @@ size_t DisplayAdapter::getBufSize(const char* parameters_format, int width, int 
         }
         else if(strcmp(parameters_format,
                       (const char *) CameraParameters::PIXEL_FORMAT_RGB565) == 0) {
+            buf_size = width * height * 2;
+        }
+        else if(strcmp(parameters_format,
+                      (const char *) CameraParameters::PIXEL_FORMAT_YUV422SP) == 0) {
             buf_size = width * height * 2;
         }
         else if (strcmp(parameters_format,
@@ -1122,6 +1131,10 @@ status_t ANativeWindowDisplayAdapter::PostFrame(ANativeWindowDisplayAdapter::Dis
                 {
                 bytesPerPixel = 2;
                 }
+            else if(strcmp(mPixelFormat, (const char *) CameraParameters::PIXEL_FORMAT_YUV422SP) == 0)
+                {
+                bytesPerPixel = 2;
+                }
             else if(strcmp(mPixelFormat, (const char *) CameraParameters::PIXEL_FORMAT_YUV420SP) == 0)
                 {
                 bytesPerPixel = 1;
@@ -1315,8 +1328,8 @@ void ANativeWindowDisplayAdapter::frameCallbackRelay(CameraFrame* caFrame)
         }
     else
         {
-        CAMHAL_LOGEB("Invalid Camera Frame = %p", caFrame);
-    }
+            CAMHAL_LOGEB("Invalid Camera Frame = %p", caFrame);
+        }
 
 }
 
