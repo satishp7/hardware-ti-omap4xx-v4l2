@@ -33,7 +33,7 @@ namespace android {
 #define DEVICE "/dev/videoxx"
 #define DEVICE_PATH "/dev/"
 #define DEVICE_NAME "videoxx"
-#define MAX_V4L2_CAM 2
+#define MAX_V4L2_CAM 1
 
 typedef int V4L_HANDLETYPE;
 
