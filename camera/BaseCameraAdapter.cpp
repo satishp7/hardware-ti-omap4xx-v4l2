@@ -2651,14 +2651,15 @@ extern "C" status_t CameraAdapter_Capabilities(
 
     supportedCameras = 0;
 #ifdef OMX_CAMERA_ADAPTER
-    //Query OMX cameras
+    //Query OMX cameras. Yes at present we have only one OMX camera
     err = OMXCameraAdapter_Capabilities( properties_array, starting_camera,
-                                         max_camera, supportedCameras);
+                                         1, supportedCameras);
     if(err != NO_ERROR) {
         CAMHAL_LOGEA("error while getting OMXCameraAdapter capabilities");
         ret = UNKNOWN_ERROR;
     }
 #endif
+
 #ifdef V4L_CAMERA_ADAPTER
     //Query V4L cameras
     err = V4LCameraAdapter_Capabilities( properties_array, (const int) supportedCameras,
