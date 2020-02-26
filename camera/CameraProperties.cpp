@@ -50,7 +50,7 @@ CameraProperties::CameraProperties() : mCamerasSupported(0)
 {
     LOG_FUNCTION_NAME;
 
-    mCamerasSupported = 0;
+    mCamerasSupported = 1;
     mInitialized = 0;
 
     LOG_FUNCTION_NAME_EXIT;
@@ -104,6 +104,8 @@ status_t CameraProperties::loadProperties()
     const status_t err = CameraAdapter_Capabilities(mCameraProps, mCamerasSupported,
             MAX_CAMERAS_SUPPORTED, mCamerasSupported);
 
+    //const status_t err = ret;
+    mCamerasSupported = 2;
     if(err != NO_ERROR) {
         LOGE("error while getting capabilities");
         ret = UNKNOWN_ERROR;
@@ -120,6 +122,7 @@ status_t CameraProperties::loadProperties()
             mCameraProps[i].setSensorIndex(i);
             mCameraProps[i].dump();
         }
+        mCameraProps[1].set(CameraProperties::CAMERA_NAME, "USBCAMERA");
     }
 
     LOGV("mCamerasSupported = %d", mCamerasSupported);
