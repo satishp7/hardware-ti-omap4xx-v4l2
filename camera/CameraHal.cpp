@@ -21,7 +21,7 @@
 *
 */
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include "CameraHal.h"
 #include "ANativeWindowDisplayAdapter.h"
 #include "BufferSourceAdapter.h"
@@ -249,20 +249,21 @@ int CameraHal::setParameters(const char* parameters)
 {
 
     LOG_FUNCTION_NAME;
-
+    int index;
+    index = atoi(mCameraProperties->get(CameraProperties::CAMERA_SENSOR_INDEX));
     CameraParameters params;
 
     String8 str_params(parameters);
     params.unflatten(str_params);
 
     LOG_FUNCTION_NAME_EXIT;
-
-    return setParameters(params);
+    if (index == 0)
+        return setParameters_omx(params);
+    else
+        return setParameters_v4l2(params);
 }
 
-#ifdef __V4L2_CHANGE__
-
-status_t CameraHal::setParameters(CameraParameters& params)
+status_t CameraHal::setParameters_v4l2(CameraParameters& params)
 {
     Mutex::Autolock lock(mLock);
     int width  = 0;
@@ -286,7 +287,6 @@ status_t CameraHal::setParameters(CameraParameters& params)
     return NO_ERROR;
 }
 
-#else
 /**
    @brief Set the camera parameters.
 
@@ -295,7 +295,7 @@ status_t CameraHal::setParameters(CameraParameters& params)
    @todo Define error codes
 
  */
-int CameraHal::setParameters(const CameraParameters& params)
+int CameraHal::setParameters_omx(const CameraParameters& params)
 {
 
     LOG_FUNCTION_NAME;
@@ -1257,7 +1257,6 @@ int CameraHal::setParameters(const CameraParameters& params)
 
     return ret;
 }
-#endif //__V4L2_CHANGE__
 
 status_t CameraHal::allocPreviewBufs(int width, int height, const char* previewFormat,
                                         unsigned int buffercount, unsigned int &max_queueable)
@@ -3700,13 +3699,19 @@ status_t CameraHal::initialize(CameraProperties::Properties* properties)
     mAppCallbackNotifier->setMeasurements(mMeasurementEnabled);
 
     ///Initialize default parameters
-    initDefaultParameters();
-
-
-    if ( setParameters(mParameters) != NO_ERROR )
+    if (strcmp(sensor_name, V4L_CAMERA_NAME_USB) == 0) {
+        initDefaultParameters(1); //index 1 is for v4l2 camera
+        if ( setParameters_v4l2(mParameters) != NO_ERROR )
         {
-        CAMHAL_LOGEA("Failed to set default parameters?!");
+            CAMHAL_LOGEA("Failed to set default parameters?!");
         }
+    } else {
+        initDefaultParameters(0); //index 0 is for omx camera
+        if ( setParameters_omx(mParameters) != NO_ERROR )
+        {
+            CAMHAL_LOGEA("Failed to set default parameters?!");
+        }
+    }
 
     /* [satish]: set parameters to adapter */
     mCameraAdapter->setParameters(mParameters);
@@ -3998,158 +4003,160 @@ void CameraHal::insertSupportedParams()
 
 }
 
-void CameraHal::initDefaultParameters()
+void CameraHal::initDefaultParameters(int index)
 {
     //Purpose of this function is to initialize the default current and supported parameters for the currently
     //selected camera.
-#ifndef __V4L2_CHANGE__
+    if (index == 0 ) {
+        // omx camera
+        CameraParameters &p = mParameters;
+        int currentRevision, adapterRevision;
+        status_t ret = NO_ERROR;
+        int width, height;
+        const char *valstr;
 
-    CameraParameters &p = mParameters;
-    int currentRevision, adapterRevision;
-    status_t ret = NO_ERROR;
-    int width, height;
-    const char *valstr;
+        LOG_FUNCTION_NAME;
 
-    LOG_FUNCTION_NAME;
+        insertSupportedParams();
 
-    insertSupportedParams();
+        ret = parseResolution(mCameraProperties->get(CameraProperties::PREVIEW_SIZE), width, height);
 
-    ret = parseResolution(mCameraProperties->get(CameraProperties::PREVIEW_SIZE), width, height);
-
-    if ( NO_ERROR == ret )
+        if ( NO_ERROR == ret )
         {
-        p.setPreviewSize(width, height);
+            p.setPreviewSize(width, height);
         }
-    else
+        else
         {
+            p.setPreviewSize(MIN_WIDTH, MIN_HEIGHT);
+        }
+
+        ret = parseResolution(mCameraProperties->get(CameraProperties::PICTURE_SIZE), width, height);
+
+        if ( NO_ERROR == ret )
+        {
+            p.setPictureSize(width, height);
+        }
+        else
+        {
+            p.setPictureSize(PICTURE_WIDTH, PICTURE_HEIGHT);
+        }
+
+        ret = parseResolution(mCameraProperties->get(CameraProperties::JPEG_THUMBNAIL_SIZE), width, height);
+
+        if ( NO_ERROR == ret )
+        {
+            p.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, width);
+            p.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, height);
+        }
+        else
+        {
+            p.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, MIN_WIDTH);
+            p.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, MIN_HEIGHT);
+        }
+
+        //Insert default values
+        //CAMERA_SENSOR_INDEX,
+        p.set(CameraProperties::CAMERA_SENSOR_INDEX, index);
+        p.setPreviewFrameRate(atoi(mCameraProperties->get(CameraProperties::PREVIEW_FRAME_RATE)));
+        p.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, mCameraProperties->get(CameraProperties::FRAMERATE_RANGE));
+        p.setPreviewFormat(mCameraProperties->get(CameraProperties::PREVIEW_FORMAT));
+        p.setPictureFormat(mCameraProperties->get(CameraProperties::PICTURE_FORMAT));
+        p.set(CameraParameters::KEY_JPEG_QUALITY, mCameraProperties->get(CameraProperties::JPEG_QUALITY));
+        p.set(CameraParameters::KEY_WHITE_BALANCE, mCameraProperties->get(CameraProperties::WHITEBALANCE));
+        p.set(CameraParameters::KEY_EFFECT,  mCameraProperties->get(CameraProperties::EFFECT));
+        p.set(CameraParameters::KEY_ANTIBANDING, mCameraProperties->get(CameraProperties::ANTIBANDING));
+        p.set(CameraParameters::KEY_FLASH_MODE, mCameraProperties->get(CameraProperties::FLASH_MODE));
+        p.set(CameraParameters::KEY_FOCUS_MODE, mCameraProperties->get(CameraProperties::FOCUS_MODE));
+        p.set(CameraParameters::KEY_EXPOSURE_COMPENSATION, mCameraProperties->get(CameraProperties::EV_COMPENSATION));
+        p.set(CameraParameters::KEY_SCENE_MODE, mCameraProperties->get(CameraProperties::SCENE_MODE));
+        p.set(CameraParameters::KEY_ZOOM, mCameraProperties->get(CameraProperties::ZOOM));
+        p.set(TICameraParameters::KEY_CONTRAST, mCameraProperties->get(CameraProperties::CONTRAST));
+        p.set(TICameraParameters::KEY_SATURATION, mCameraProperties->get(CameraProperties::SATURATION));
+        p.set(TICameraParameters::KEY_BRIGHTNESS, mCameraProperties->get(CameraProperties::BRIGHTNESS));
+        p.set(TICameraParameters::KEY_SHARPNESS, mCameraProperties->get(CameraProperties::SHARPNESS));
+        p.set(TICameraParameters::KEY_EXPOSURE_MODE, mCameraProperties->get(CameraProperties::EXPOSURE_MODE));
+        p.set(TICameraParameters::KEY_MANUAL_EXPOSURE, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_EXPOSURE_MIN));
+        p.set(TICameraParameters::KEY_MANUAL_EXPOSURE_RIGHT, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_EXPOSURE_MIN));
+        p.set(TICameraParameters::KEY_MANUAL_GAIN_ISO, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_GAIN_ISO_MIN));
+        p.set(TICameraParameters::KEY_MANUAL_GAIN_ISO_RIGHT, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_GAIN_ISO_MIN));
+        p.set(TICameraParameters::KEY_ISO, mCameraProperties->get(CameraProperties::ISO_MODE));
+        p.set(TICameraParameters::KEY_IPP, mCameraProperties->get(CameraProperties::IPP));
+        p.set(TICameraParameters::KEY_GBCE, mCameraProperties->get(CameraProperties::GBCE));
+        p.set(TICameraParameters::KEY_GBCE_SUPPORTED, mCameraProperties->get(CameraProperties::SUPPORTED_GBCE));
+        p.set(TICameraParameters::KEY_GLBCE, mCameraProperties->get(CameraProperties::GLBCE));
+        p.set(TICameraParameters::KEY_GLBCE_SUPPORTED, mCameraProperties->get(CameraProperties::SUPPORTED_GLBCE));
+        p.set(TICameraParameters::KEY_S3D_PRV_FRAME_LAYOUT, mCameraProperties->get(CameraProperties::S3D_PRV_FRAME_LAYOUT));
+        p.set(TICameraParameters::KEY_S3D_CAP_FRAME_LAYOUT, mCameraProperties->get(CameraProperties::S3D_CAP_FRAME_LAYOUT));
+        p.set(TICameraParameters::KEY_AUTOCONVERGENCE_MODE, mCameraProperties->get(CameraProperties::AUTOCONVERGENCE_MODE));
+        p.set(TICameraParameters::KEY_MANUAL_CONVERGENCE, mCameraProperties->get(CameraProperties::MANUAL_CONVERGENCE));
+        p.set(CameraParameters::KEY_VIDEO_STABILIZATION, mCameraProperties->get(CameraProperties::VSTAB));
+        p.set(TICameraParameters::KEY_VNF, mCameraProperties->get(CameraProperties::VNF));
+        p.set(CameraParameters::KEY_FOCAL_LENGTH, mCameraProperties->get(CameraProperties::FOCAL_LENGTH));
+        p.set(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, mCameraProperties->get(CameraProperties::HOR_ANGLE));
+        p.set(CameraParameters::KEY_VERTICAL_VIEW_ANGLE, mCameraProperties->get(CameraProperties::VER_ANGLE));
+        p.set(TICameraParameters::KEY_SENSOR_ORIENTATION, mCameraProperties->get(CameraProperties::SENSOR_ORIENTATION));
+        p.set(TICameraParameters::KEY_EXIF_MAKE, mCameraProperties->get(CameraProperties::EXIF_MAKE));
+        p.set(TICameraParameters::KEY_EXIF_MODEL, mCameraProperties->get(CameraProperties::EXIF_MODEL));
+        p.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, mCameraProperties->get(CameraProperties::JPEG_THUMBNAIL_QUALITY));
+        p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar");
+        p.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_HW, mCameraProperties->get(CameraProperties::MAX_FD_HW_FACES));
+        p.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_SW, mCameraProperties->get(CameraProperties::MAX_FD_SW_FACES));
+        p.set(TICameraParameters::KEY_MECHANICAL_MISALIGNMENT_CORRECTION, mCameraProperties->get(CameraProperties::MECHANICAL_MISALIGNMENT_CORRECTION));
+        // Only one area a.k.a Touch AF for now.
+        // TODO: Add support for multiple focus areas.
+        p.set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, mCameraProperties->get(CameraProperties::MAX_FOCUS_AREAS));
+        p.set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK, mCameraProperties->get(CameraProperties::AUTO_EXPOSURE_LOCK));
+        p.set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, mCameraProperties->get(CameraProperties::AUTO_WHITEBALANCE_LOCK));
+        p.set(CameraParameters::KEY_MAX_NUM_METERING_AREAS, mCameraProperties->get(CameraProperties::MAX_NUM_METERING_AREAS));
+        p.set(TICameraParameters::RAW_WIDTH, mCameraProperties->get(CameraProperties::RAW_WIDTH));
+        p.set(TICameraParameters::RAW_HEIGHT,mCameraProperties->get(CameraProperties::RAW_HEIGHT));
+
+        // TI extensions for enable/disable algos
+        // Hadcoded for now
+        p.set(TICameraParameters::KEY_ALGO_FIXED_GAMMA, CameraParameters::TRUE);
+        p.set(TICameraParameters::KEY_ALGO_NSF1, CameraParameters::TRUE);
+        p.set(TICameraParameters::KEY_ALGO_NSF2, CameraParameters::TRUE);
+        p.set(TICameraParameters::KEY_ALGO_SHARPENING, CameraParameters::TRUE);
+        p.set(TICameraParameters::KEY_ALGO_THREELINCOLORMAP, CameraParameters::TRUE);
+        p.set(TICameraParameters::KEY_ALGO_GIC, CameraParameters::TRUE);
+
+    } else {
+        // v4l2 camera
+        CameraParameters &p = mParameters;
+
+        p.set(CameraProperties::CAMERA_SENSOR_INDEX, index);
         p.setPreviewSize(MIN_WIDTH, MIN_HEIGHT);
-        }
+        p.setPreviewFrameRate(CameraHal::DEFAULT_FRAMERATE);
+        //p.setPreviewFormat(CameraParameters::PIXEL_FORMAT_RGB565);
+        p.setPreviewFormat(CameraParameters::PIXEL_FORMAT_YUV420SP);
 
-    ret = parseResolution(mCameraProperties->get(CameraProperties::PICTURE_SIZE), width, height);
+        p.setPictureSize(MIN_WIDTH, MIN_HEIGHT);
+        p.setPictureFormat(CameraParameters::PIXEL_FORMAT_JPEG);
+        p.set(CameraParameters::KEY_JPEG_QUALITY, 100);
+        p.set("picture-size-values", CameraHal::supportedPictureSizes);
 
-    if ( NO_ERROR == ret )
-        {
-        p.setPictureSize(width, height);
-        }
-    else
-        {
-        p.setPictureSize(PICTURE_WIDTH, PICTURE_HEIGHT);
-        }
+        p.set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, CameraHal::supportedPictureSizes);
+        p.set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS, CameraParameters::PIXEL_FORMAT_JPEG);
+        p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, CameraHal::supportedPreviewSizes);
+        //p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, CameraParameters::PIXEL_FORMAT_RGB565);
+        p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, CameraParameters::PIXEL_FORMAT_YUV420SP);
+        p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar");
+        //p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_COLOR_Format16bitRGB565");
+        //p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, CameraParameters::PIXEL_FORMAT_RGB565);
+        p.set(CameraParameters::KEY_FOCUS_MODE,CameraParameters::FOCUS_MODE_INFINITY);
 
-    ret = parseResolution(mCameraProperties->get(CameraProperties::JPEG_THUMBNAIL_SIZE), width, height);
-
-    if ( NO_ERROR == ret )
-        {
-        p.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, width);
-        p.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, height);
-        }
-    else
-        {
-        p.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, MIN_WIDTH);
-        p.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, MIN_HEIGHT);
-        }
-
-    //Insert default values
-    p.setPreviewFrameRate(atoi(mCameraProperties->get(CameraProperties::PREVIEW_FRAME_RATE)));
-    p.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, mCameraProperties->get(CameraProperties::FRAMERATE_RANGE));
-    p.setPreviewFormat(mCameraProperties->get(CameraProperties::PREVIEW_FORMAT));
-    p.setPictureFormat(mCameraProperties->get(CameraProperties::PICTURE_FORMAT));
-    p.set(CameraParameters::KEY_JPEG_QUALITY, mCameraProperties->get(CameraProperties::JPEG_QUALITY));
-    p.set(CameraParameters::KEY_WHITE_BALANCE, mCameraProperties->get(CameraProperties::WHITEBALANCE));
-    p.set(CameraParameters::KEY_EFFECT,  mCameraProperties->get(CameraProperties::EFFECT));
-    p.set(CameraParameters::KEY_ANTIBANDING, mCameraProperties->get(CameraProperties::ANTIBANDING));
-    p.set(CameraParameters::KEY_FLASH_MODE, mCameraProperties->get(CameraProperties::FLASH_MODE));
-    p.set(CameraParameters::KEY_FOCUS_MODE, mCameraProperties->get(CameraProperties::FOCUS_MODE));
-    p.set(CameraParameters::KEY_EXPOSURE_COMPENSATION, mCameraProperties->get(CameraProperties::EV_COMPENSATION));
-    p.set(CameraParameters::KEY_SCENE_MODE, mCameraProperties->get(CameraProperties::SCENE_MODE));
-    p.set(CameraParameters::KEY_ZOOM, mCameraProperties->get(CameraProperties::ZOOM));
-    p.set(TICameraParameters::KEY_CONTRAST, mCameraProperties->get(CameraProperties::CONTRAST));
-    p.set(TICameraParameters::KEY_SATURATION, mCameraProperties->get(CameraProperties::SATURATION));
-    p.set(TICameraParameters::KEY_BRIGHTNESS, mCameraProperties->get(CameraProperties::BRIGHTNESS));
-    p.set(TICameraParameters::KEY_SHARPNESS, mCameraProperties->get(CameraProperties::SHARPNESS));
-    p.set(TICameraParameters::KEY_EXPOSURE_MODE, mCameraProperties->get(CameraProperties::EXPOSURE_MODE));
-    p.set(TICameraParameters::KEY_MANUAL_EXPOSURE, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_EXPOSURE_MIN));
-    p.set(TICameraParameters::KEY_MANUAL_EXPOSURE_RIGHT, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_EXPOSURE_MIN));
-    p.set(TICameraParameters::KEY_MANUAL_GAIN_ISO, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_GAIN_ISO_MIN));
-    p.set(TICameraParameters::KEY_MANUAL_GAIN_ISO_RIGHT, mCameraProperties->get(CameraProperties::SUPPORTED_MANUAL_GAIN_ISO_MIN));
-    p.set(TICameraParameters::KEY_ISO, mCameraProperties->get(CameraProperties::ISO_MODE));
-    p.set(TICameraParameters::KEY_IPP, mCameraProperties->get(CameraProperties::IPP));
-    p.set(TICameraParameters::KEY_GBCE, mCameraProperties->get(CameraProperties::GBCE));
-    p.set(TICameraParameters::KEY_GBCE_SUPPORTED, mCameraProperties->get(CameraProperties::SUPPORTED_GBCE));
-    p.set(TICameraParameters::KEY_GLBCE, mCameraProperties->get(CameraProperties::GLBCE));
-    p.set(TICameraParameters::KEY_GLBCE_SUPPORTED, mCameraProperties->get(CameraProperties::SUPPORTED_GLBCE));
-    p.set(TICameraParameters::KEY_S3D_PRV_FRAME_LAYOUT, mCameraProperties->get(CameraProperties::S3D_PRV_FRAME_LAYOUT));
-    p.set(TICameraParameters::KEY_S3D_CAP_FRAME_LAYOUT, mCameraProperties->get(CameraProperties::S3D_CAP_FRAME_LAYOUT));
-    p.set(TICameraParameters::KEY_AUTOCONVERGENCE_MODE, mCameraProperties->get(CameraProperties::AUTOCONVERGENCE_MODE));
-    p.set(TICameraParameters::KEY_MANUAL_CONVERGENCE, mCameraProperties->get(CameraProperties::MANUAL_CONVERGENCE));
-    p.set(CameraParameters::KEY_VIDEO_STABILIZATION, mCameraProperties->get(CameraProperties::VSTAB));
-    p.set(TICameraParameters::KEY_VNF, mCameraProperties->get(CameraProperties::VNF));
-    p.set(CameraParameters::KEY_FOCAL_LENGTH, mCameraProperties->get(CameraProperties::FOCAL_LENGTH));
-    p.set(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, mCameraProperties->get(CameraProperties::HOR_ANGLE));
-    p.set(CameraParameters::KEY_VERTICAL_VIEW_ANGLE, mCameraProperties->get(CameraProperties::VER_ANGLE));
-    p.set(TICameraParameters::KEY_SENSOR_ORIENTATION, mCameraProperties->get(CameraProperties::SENSOR_ORIENTATION));
-    p.set(TICameraParameters::KEY_EXIF_MAKE, mCameraProperties->get(CameraProperties::EXIF_MAKE));
-    p.set(TICameraParameters::KEY_EXIF_MODEL, mCameraProperties->get(CameraProperties::EXIF_MODEL));
-    p.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, mCameraProperties->get(CameraProperties::JPEG_THUMBNAIL_QUALITY));
-    p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar");
-    p.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_HW, mCameraProperties->get(CameraProperties::MAX_FD_HW_FACES));
-    p.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_SW, mCameraProperties->get(CameraProperties::MAX_FD_SW_FACES));
-    p.set(TICameraParameters::KEY_MECHANICAL_MISALIGNMENT_CORRECTION, mCameraProperties->get(CameraProperties::MECHANICAL_MISALIGNMENT_CORRECTION));
-    // Only one area a.k.a Touch AF for now.
-    // TODO: Add support for multiple focus areas.
-    p.set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, mCameraProperties->get(CameraProperties::MAX_FOCUS_AREAS));
-    p.set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK, mCameraProperties->get(CameraProperties::AUTO_EXPOSURE_LOCK));
-    p.set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, mCameraProperties->get(CameraProperties::AUTO_WHITEBALANCE_LOCK));
-    p.set(CameraParameters::KEY_MAX_NUM_METERING_AREAS, mCameraProperties->get(CameraProperties::MAX_NUM_METERING_AREAS));
-    p.set(TICameraParameters::RAW_WIDTH, mCameraProperties->get(CameraProperties::RAW_WIDTH));
-    p.set(TICameraParameters::RAW_HEIGHT,mCameraProperties->get(CameraProperties::RAW_HEIGHT));
-
-    // TI extensions for enable/disable algos
-    // Hadcoded for now
-    p.set(TICameraParameters::KEY_ALGO_FIXED_GAMMA, CameraParameters::TRUE);
-    p.set(TICameraParameters::KEY_ALGO_NSF1, CameraParameters::TRUE);
-    p.set(TICameraParameters::KEY_ALGO_NSF2, CameraParameters::TRUE);
-    p.set(TICameraParameters::KEY_ALGO_SHARPENING, CameraParameters::TRUE);
-    p.set(TICameraParameters::KEY_ALGO_THREELINCOLORMAP, CameraParameters::TRUE);
-    p.set(TICameraParameters::KEY_ALGO_GIC, CameraParameters::TRUE);
-
-#else
-
-    CameraParameters &p = mParameters;
-
-    p.setPreviewSize(MIN_WIDTH, MIN_HEIGHT);
-    p.setPreviewFrameRate(CameraHal::DEFAULT_FRAMERATE);
-    //p.setPreviewFormat(CameraParameters::PIXEL_FORMAT_RGB565);
-    p.setPreviewFormat(CameraParameters::PIXEL_FORMAT_YUV420SP);
-
-    p.setPictureSize(MIN_WIDTH, MIN_HEIGHT);
-    p.setPictureFormat(CameraParameters::PIXEL_FORMAT_JPEG);
-    p.set(CameraParameters::KEY_JPEG_QUALITY, 100);
-    p.set("picture-size-values", CameraHal::supportedPictureSizes);
-
-    p.set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, CameraHal::supportedPictureSizes);
-    p.set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS, CameraParameters::PIXEL_FORMAT_JPEG);
-    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, CameraHal::supportedPreviewSizes);
-    //p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, CameraParameters::PIXEL_FORMAT_RGB565);
-    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, CameraParameters::PIXEL_FORMAT_YUV420SP);
-    p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar");
-    //p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, "OMX_COLOR_Format16bitRGB565");
-    //p.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT, CameraParameters::PIXEL_FORMAT_RGB565);
-    p.set(CameraParameters::KEY_FOCUS_MODE,CameraParameters::FOCUS_MODE_INFINITY);
-
-    // emulated values
-    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE, CameraHal::supportedPreviewFpsRange);
-    p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES, "15,25,30");
-    p.set(CameraParameters::KEY_VIDEO_SIZE, CameraHal::supportedVideoSizes);
-    mVideoWidth = MIN_WIDTH;
-    mVideoHeight = MIN_HEIGHT;
-    p.set(TICameraParameters::KEY_SENSOR_ORIENTATION, 0);
-
-#endif //__V4L2_CHANGE__
+        // emulated values
+        p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE, CameraHal::supportedPreviewFpsRange);
+        p.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES, "15,25,30");
+        p.set(CameraParameters::KEY_VIDEO_SIZE, CameraHal::supportedVideoSizes);
+        mVideoWidth = MIN_WIDTH;
+        mVideoHeight = MIN_HEIGHT;
+        p.set(TICameraParameters::KEY_SENSOR_ORIENTATION, 0);
+    }
 }
 
 /**
-   @brief Stop a previously started preview.
+  @brief Stop a previously started preview.
    @param none
    @return none
 

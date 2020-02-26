@@ -1177,7 +1177,8 @@ public:
 
     /** Set the camera parameters. */
     int    setParameters(const char* params);
-    int    setParameters(const CameraParameters& params);
+    int    setParameters_v4l2(CameraParameters& params);
+	int    setParameters_omx(const CameraParameters& params);
 
     /** Return the camera parameters. */
     char*  getParameters();
@@ -1318,7 +1319,7 @@ private:
     status_t doesSetParameterNeedUpdate(const char *new_param, const char *old_params, bool &update);
 
     /** Initialize default parameters */
-    void initDefaultParameters();
+    void initDefaultParameters(int index);
 
     void dumpProperties(CameraProperties::Properties& cameraProps);
 
