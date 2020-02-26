@@ -594,18 +594,12 @@ int camera_device_open(const hw_module_t* module, const char* name,
         // [satish]: set prop based on camera id
         // This is to setup the media link based on camera id
         LOGI("camera_device open:cameraid:%d", cameraid);
-#if 0       
- if(cameraid > 0) {
+
+        if(cameraid > 0) {
             if(property_set("ctl.start", "fclink") < 0) {
                 LOGI("HACK: property set to camera 1 is failed");
             }
-        } else {
-            if(property_set("ctl.start", "bclink") < 0) {
-                LOGI("HACK: property set to camera 0 is failed");
-            }
         }
-        //
-#endif
 
         memset(camera_device, 0, sizeof(*camera_device));
         memset(camera_ops, 0, sizeof(*camera_ops));
