@@ -309,7 +309,7 @@ status_t V4LCameraAdapter::initialize(CameraProperties::Properties* caps)
         goto EXIT;
     }
 
-    if ((mCameraHandle = open(mDeviceList[mCameraIndex], O_RDWR) ) == -1) {
+    if ((mCameraHandle = open(mDeviceList[0], O_RDWR) ) == -1) {
         CAMHAL_LOGEB("Error while opening handle to V4L2 Camera: %s", strerror(errno));
         ret = BAD_VALUE;
         goto EXIT;
@@ -1328,6 +1328,7 @@ void detectVideoDevice(char** video_device_list, int& num_device) {
        }
     }
 #else
+#ifdef BOTH_FC_BC_V4L2
     for (unsigned int i =0; i <  MAX_V4L2_CAM; i++) {
         snprintf(dev_list[i],15,"/dev/video%d",i);
         index++;
@@ -1337,6 +1338,10 @@ void detectVideoDevice(char** video_device_list, int& num_device) {
     for(unsigned int i=0; i< index && i < MAX_V4L2_CAM; i++) {
         CAMHAL_LOGDB("Video device list::dev_list[%d]= %s",i,dev_list[i]);
     }
+#endif
+    snprintf(dev_list[0],15,"/dev/video1");
+    num_device = 1;
+    CAMHAL_LOGDB("Video device list::dev= %s",dev_list[0]);
 #endif
 }
 
@@ -1397,7 +1402,7 @@ extern "C" status_t V4LCameraAdapter_Capabilities(
 
             CAMHAL_LOGDB("Opening device[%d] = %s..",i, video_device_list[i]);
             if ((tempHandle = open(video_device_list[i], O_RDWR)) == -1) {
-                CAMHAL_LOGEB("Error while opening handle to V4L2 Camera(%s): %s",video_device_list[i], strerror(errno));
+                CAMHAL_LOGDB("Error while opening handle to V4L2 Camera(%s): %s",video_device_list[i], strerror(errno));
                 continue;
             }
 
