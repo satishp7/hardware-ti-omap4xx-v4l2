@@ -98,7 +98,7 @@
 #define CAMHAL_LOGI LOGI
 
 // logging functions
-//#define CAMERAHAL_DEBUG 1
+#define CAMERAHAL_DEBUG 1
 #ifdef CAMERAHAL_DEBUG
 #   define CAMHAL_LOGD  DBGUTILS_LOGD
 #   define CAMHAL_LOGDA DBGUTILS_LOGDA

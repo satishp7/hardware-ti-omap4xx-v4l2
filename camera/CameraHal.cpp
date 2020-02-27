@@ -21,7 +21,7 @@
 *
 */
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #include "CameraHal.h"
 #include "ANativeWindowDisplayAdapter.h"
 #include "BufferSourceAdapter.h"

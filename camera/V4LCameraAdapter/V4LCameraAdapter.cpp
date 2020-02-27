@@ -20,7 +20,7 @@
 * This file maps the Camera Hardware Interface to V4L2.
 *
 */
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 
 #include "V4LCameraAdapter.h"
 #include "CameraHal.h"
@@ -609,6 +609,8 @@ status_t V4LCameraAdapter::takePicture() {
         ret = BAD_VALUE;
         goto EXIT;
     }
+
+    CAMHAL_LOGDA("::Capture Frame from V4L::%d, mCaptureBufferCount:%d", index, mCaptureBufferCount);
 
 #ifdef DUMP_CAPTURE_FRAME
     //dump the YUV422 buffer in to a file
