@@ -213,13 +213,15 @@ void CameraProperties::Properties::dump() {
     CAMHAL_LOGD("================================");
     CAMHAL_LOGD("Dumping properties for camera: %d", getInt("prop-sensor-index"));
 
+#ifdef DUMP_ENABLE
+
     for (size_t i = 0; i < mProperties[mCurrentMode].size(); i++) {
         CAMHAL_LOGD("%s = %s",
                 mProperties[mCurrentMode].keyAt(i).string(),
                 mProperties[mCurrentMode].valueAt(i).string());
     }
-
     CAMHAL_LOGD("--------------------------------");
+#endif
 }
 
 const char* CameraProperties::Properties::keyAt(const unsigned int index) const {

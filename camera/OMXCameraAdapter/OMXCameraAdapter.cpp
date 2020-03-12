@@ -20,7 +20,7 @@
 * This file maps the Camera Hardware Interface to OMX.
 *
 */
-
+#define LOG_NDEBUG 0
 #include "CameraHal.h"
 #include "OMXCameraAdapter.h"
 #include "ErrorUtils.h"
@@ -2300,6 +2300,7 @@ status_t OMXCameraAdapter::destroyTunnel()
         // we might put OMXCamera in a bad state (IDLE->LOADED timeout). Seeing this a lot
         // after a capture
         if (mFrameCount < 1) {
+            LOGD("HACK: !!!!!!!!!! Should not come here");
             // I want to wait for at least two frames....
             mFrameCount = -1;
 
@@ -3488,7 +3489,7 @@ OMX_ERRORTYPE OMXCameraAdapter::OMXCameraAdapterFillBufferDone(OMX_IN OMX_HANDLE
 
         mFramesWithDucati--;
 
-#ifdef CAMERAHAL_DEBUG
+#if 0 //def CAMERAHAL_DEBUG
         if(mBuffersWithDucati.indexOfKey((uint32_t)pBuffHeader->pBuffer)<0)
             {
             LOGE("Buffer was never with Ducati!! %p", pBuffHeader->pBuffer);

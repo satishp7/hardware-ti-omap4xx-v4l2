@@ -253,11 +253,13 @@ int CameraHal::setParameters(const char* parameters)
     index = atoi(mCameraProperties->get(CameraProperties::CAMERA_SENSOR_INDEX));
     CameraParameters params;
 
+    if (mPreviewEnabled == false)
+        return 0;
     String8 str_params(parameters);
     params.unflatten(str_params);
 
     LOG_FUNCTION_NAME_EXIT;
-    if (index == 0)
+    if (mCameraIndex == 0)
         return setParameters_omx(params);
     else
         return setParameters_v4l2(params);
@@ -308,7 +310,9 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
     // Needed for KEY_RECORDING_HINT
     bool restartPreviewRequired = false;
     bool updateRequired = false;
-    CameraParameters oldParams(mParameters.flatten());
+    int varint = 0;
+    CameraParameters oldParams = mParameters;
+    //CameraParameters oldParams(mParameters.flatten());
 
 #ifdef V4L_CAMERA_ADAPTER
     if (strcmp (V4L_CAMERA_NAME_USB, mCameraProperties->get(CameraProperties::CAMERA_NAME)) == 0 ) {
@@ -332,7 +336,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
                     return BAD_VALUE;
                 }
             }
-
+#if 0 //SATISH
             if ((valstr = params.get(TICameraParameters::KEY_VNF)) != NULL) {
                 if (strcmp(mCameraProperties->get(CameraProperties::VNF_SUPPORTED),
                            CameraParameters::TRUE) == 0) {
@@ -348,16 +352,32 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
                                     CameraParameters::FALSE);
                 }
             }
+#else
+            varint = params.getInt(TICameraParameters::KEY_VNF);
+            valstr = params.get(TICameraParameters::KEY_VNF);
+            if ( valstr != NULL ) {
+                if ( ( varint == 0 ) || ( varint == 1 ) ) {
+                    CAMHAL_LOGDB("VNF set %s", valstr);
+                    mParameters.set(TICameraParameters::KEY_VNF, varint);
+                } else {
+                    CAMHAL_LOGEB("ERROR: Invalid VNF: %s", valstr);
+                    return BAD_VALUE;
+                }
+            }
+
+#endif
 
             if ((valstr = params.get(CameraParameters::KEY_VIDEO_STABILIZATION)) != NULL) {
                 // make sure we support vstab...if we don't and application is trying to set
                 // vstab then return an error
                 if (strcmp(mCameraProperties->get(CameraProperties::VSTAB_SUPPORTED),
                            CameraParameters::TRUE) == 0) {
-                    CAMHAL_LOGDB("VSTAB %s",
-                                  params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
-                    mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,
-                                    params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
+                    //CAMHAL_LOGDB("VSTAB %s",
+                    //              params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
+                    //mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,
+                    //                params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
+                    CAMHAL_LOGDB("VSTAB %s",valstr);
+                                        mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION, valstr);
                 } else if (strcmp(valstr, CameraParameters::TRUE) == 0) {
                     CAMHAL_LOGEB("ERROR: Invalid VSTAB: %s", valstr);
                     return BAD_VALUE;
@@ -394,7 +414,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
             if ((valstr = params.get(TICameraParameters::KEY_IPP)) != NULL) {
                 if (isParameterValid(valstr,mCameraProperties->get(CameraProperties::SUPPORTED_IPP_MODES))) {
-                    CAMHAL_LOGDB("IPP mode set %s", params.get(TICameraParameters::KEY_IPP));
+                    //CAMHAL_LOGDB("IPP mode set %s", params.get(TICameraParameters::KEY_IPP));
                     mParameters.set(TICameraParameters::KEY_IPP, valstr);
                 } else {
                     CAMHAL_LOGEB("ERROR: Invalid IPP mode: %s", valstr);
@@ -854,7 +874,8 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(CameraParameters::KEY_FOCUS_AREAS)) != NULL )
             {
-            CAMHAL_LOGDB("Focus areas position set %s", params.get(CameraParameters::KEY_FOCUS_AREAS));
+            //CAMHAL_LOGDB("Focus areas position set %s", params.get(CameraParameters::KEY_FOCUS_AREAS));
+            CAMHAL_LOGDB("Focus areas position set %s",valstr);
             mParameters.set(CameraParameters::KEY_FOCUS_AREAS, valstr);
             }
 
@@ -880,8 +901,9 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(CameraParameters::KEY_EXPOSURE_COMPENSATION)) != NULL)
             {
-            CAMHAL_LOGDB("Exposure compensation set %s", params.get(CameraParameters::KEY_EXPOSURE_COMPENSATION));
-            mParameters.set(CameraParameters::KEY_EXPOSURE_COMPENSATION, valstr);
+            //CAMHAL_LOGDB("Exposure compensation set %s", params.get(CameraParameters::KEY_EXPOSURE_COMPENSATION));
+                CAMHAL_LOGDB("Exposure compensation set %s", valstr);
+                mParameters.set(CameraParameters::KEY_EXPOSURE_COMPENSATION, valstr);
             }
 
         if ((valstr = params.get(CameraParameters::KEY_SCENE_MODE)) != NULL) {
@@ -917,52 +939,71 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
              }
         }
 
-        if(( (valstr = params.get(CameraParameters::KEY_ROTATION)) != NULL)
-            && (params.getInt(CameraParameters::KEY_ROTATION) >=0))
+            varint = params.getInt(CameraParameters::KEY_ROTATION);
+            if( varint >=0 )
             {
-            CAMHAL_LOGDB("Rotation set %s", params.get(CameraParameters::KEY_ROTATION));
-            mParameters.set(CameraParameters::KEY_ROTATION, valstr);
+            CAMHAL_LOGDB("Rotation set %d", varint);
+            mParameters.set(CameraParameters::KEY_ROTATION, varint);
             }
 
-        if(( (valstr = params.get(CameraParameters::KEY_JPEG_QUALITY)) != NULL)
-            && (params.getInt(CameraParameters::KEY_JPEG_QUALITY) >=0))
+            varint = params.getInt(CameraParameters::KEY_JPEG_QUALITY);
+            if( varint >= 0 )
             {
-            CAMHAL_LOGDB("Jpeg quality set %s", params.get(CameraParameters::KEY_JPEG_QUALITY));
-            mParameters.set(CameraParameters::KEY_JPEG_QUALITY, valstr);
+            CAMHAL_LOGDB("Jpeg quality set %d", varint);
+            mParameters.set(CameraParameters::KEY_JPEG_QUALITY, varint);
             }
 
-        if(( (valstr = params.get(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH)) != NULL)
-            && (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH) >=0))
-            {
-            CAMHAL_LOGDB("Thumbnail width set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH));
-            mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, valstr);
-            }
+                varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+                if( varint >=0 )
+                {
+                CAMHAL_LOGDB("Thumbnail width set %d", varint);
+                mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, varint);
+                }
 
-        if(( (valstr = params.get(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT)) != NULL)
-            && (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT) >=0))
-            {
-            CAMHAL_LOGDB("Thumbnail width set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT));
-            mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, valstr);
-            }
+                varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+                if( varint >=0 )
+                {
+                CAMHAL_LOGDB("Thumbnail width set %d", varint);
+                mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, varint);
+                }
 
-        if(( (valstr = params.get(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY)) != NULL )
-            && (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY) >=0))
-            {
-            CAMHAL_LOGDB("Thumbnail quality set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY));
-            mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, valstr);
-            }
+                varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
+                if( varint >=0 )
+                {
+                CAMHAL_LOGDB("Thumbnail quality set %d", varint);
+                mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, varint);
+                }
+                varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+                if( varint >=0 )
+                {
+                    CAMHAL_LOGDB("Thumbnail width set %d", varint);
+                    mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, varint);
+                }
 
+                varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+                if( varint >=0 )
+                {
+                    CAMHAL_LOGDB("Thumbnail width set %d", varint);
+                    mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, varint);
+                }
+
+                varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
+                if( varint >=0 )
+                {
+                    CAMHAL_LOGDB("Thumbnail quality set %d", varint);
+                    mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, varint);
+                }
         if( (valstr = params.get(CameraParameters::KEY_GPS_LATITUDE)) != NULL )
             {
-            CAMHAL_LOGDB("GPS latitude set %s", params.get(CameraParameters::KEY_GPS_LATITUDE));
-            mParameters.set(CameraParameters::KEY_GPS_LATITUDE, valstr);
+                CAMHAL_LOGDB("GPS latitude set %s", valstr);
+                mParameters.set(CameraParameters::KEY_GPS_LATITUDE, valstr);
             }else{
                 mParameters.remove(CameraParameters::KEY_GPS_LATITUDE);
             }
 
         if( (valstr = params.get(CameraParameters::KEY_GPS_LONGITUDE)) != NULL )
             {
-            CAMHAL_LOGDB("GPS longitude set %s", params.get(CameraParameters::KEY_GPS_LONGITUDE));
+            CAMHAL_LOGDB("GPS longitude set %s", valstr);
             mParameters.set(CameraParameters::KEY_GPS_LONGITUDE, valstr);
             }else{
                 mParameters.remove(CameraParameters::KEY_GPS_LONGITUDE);
@@ -978,7 +1019,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(CameraParameters::KEY_GPS_TIMESTAMP)) != NULL )
             {
-            CAMHAL_LOGDB("GPS timestamp set %s", params.get(CameraParameters::KEY_GPS_TIMESTAMP));
+            CAMHAL_LOGDB("GPS timestamp set %s", valstr);
             mParameters.set(CameraParameters::KEY_GPS_TIMESTAMP, valstr);
             }else{
                 mParameters.remove(CameraParameters::KEY_GPS_TIMESTAMP);
@@ -986,7 +1027,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(TICameraParameters::KEY_GPS_DATESTAMP)) != NULL )
             {
-            CAMHAL_LOGDB("GPS datestamp set %s", params.get(TICameraParameters::KEY_GPS_DATESTAMP));
+            CAMHAL_LOGDB("GPS datestamp set %s", valstr);
             mParameters.set(TICameraParameters::KEY_GPS_DATESTAMP, valstr);
             }else{
                 mParameters.remove(TICameraParameters::KEY_GPS_DATESTAMP);
@@ -994,7 +1035,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(CameraParameters::KEY_GPS_PROCESSING_METHOD)) != NULL )
             {
-            CAMHAL_LOGDB("GPS processing method set %s", params.get(CameraParameters::KEY_GPS_PROCESSING_METHOD));
+                CAMHAL_LOGDB("GPS datestamp set %s", valstr);
             mParameters.set(CameraParameters::KEY_GPS_PROCESSING_METHOD, valstr);
             }else{
                 mParameters.remove(CameraParameters::KEY_GPS_PROCESSING_METHOD);
@@ -1002,7 +1043,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(TICameraParameters::KEY_GPS_MAPDATUM )) != NULL )
             {
-            CAMHAL_LOGDB("GPS MAPDATUM set %s", params.get(TICameraParameters::KEY_GPS_MAPDATUM));
+            CAMHAL_LOGDB("GPS datestamp set %s", valstr);
             mParameters.set(TICameraParameters::KEY_GPS_MAPDATUM, valstr);
             }else{
                 mParameters.remove(TICameraParameters::KEY_GPS_MAPDATUM);
@@ -1010,7 +1051,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(TICameraParameters::KEY_GPS_VERSION)) != NULL )
             {
-            CAMHAL_LOGDB("GPS MAPDATUM set %s", params.get(TICameraParameters::KEY_GPS_VERSION));
+            CAMHAL_LOGDB("GPS datestamp set %s", valstr);
             mParameters.set(TICameraParameters::KEY_GPS_VERSION, valstr);
             }else{
                 mParameters.remove(TICameraParameters::KEY_GPS_VERSION);
@@ -1018,13 +1059,13 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(TICameraParameters::KEY_EXIF_MODEL)) != NULL )
             {
-            CAMHAL_LOGDB("EXIF Model set %s", params.get(TICameraParameters::KEY_EXIF_MODEL));
+            CAMHAL_LOGDB("GPS datestamp set %s", valstr);
             mParameters.set(TICameraParameters::KEY_EXIF_MODEL, valstr);
             }
 
         if( (valstr = params.get(TICameraParameters::KEY_EXIF_MAKE)) != NULL )
             {
-            CAMHAL_LOGDB("EXIF Make set %s", params.get(TICameraParameters::KEY_EXIF_MAKE));
+            CAMHAL_LOGDB("GPS datestamp set %s", valstr);
             mParameters.set(TICameraParameters::KEY_EXIF_MAKE, valstr);
             }
 
@@ -1050,9 +1091,11 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
             mParameters.remove(TICameraParameters::KEY_ZOOM_BRACKETING_RANGE);
         }
 
-        if ((valstr = params.get(CameraParameters::KEY_ZOOM)) != NULL ) {
-            if ((params.getInt(CameraParameters::KEY_ZOOM) >= 0 ) &&
-                (params.getInt(CameraParameters::KEY_ZOOM) <= mMaxZoomSupported )) {
+        valstr = params.get(CameraParameters::KEY_ZOOM);
+        varint = params.getInt(CameraParameters::KEY_ZOOM);
+        if ( valstr != NULL ) {
+            if ( ( varint >= 0 ) && ( varint <= mMaxZoomSupported ) ) {
+
                 CAMHAL_LOGDB("Zoom set %s", valstr);
                 doesSetParameterNeedUpdate(valstr,
                                            mParameters.get(CameraParameters::KEY_ZOOM),
@@ -1066,7 +1109,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK)) != NULL )
           {
-            CAMHAL_LOGDB("Auto Exposure Lock set %s", params.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK));
+            CAMHAL_LOGDB("Auto Exposure Lock set %s", valstr);
             doesSetParameterNeedUpdate(valstr,
                                        mParameters.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK),
                                        updateRequired);
@@ -1075,7 +1118,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
         if( (valstr = params.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK)) != NULL )
           {
-            CAMHAL_LOGDB("Auto WhiteBalance Lock set %s", params.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK));
+            CAMHAL_LOGDB("Auto WhiteBalance Lock set %s", valstr);
             doesSetParameterNeedUpdate(valstr,
                                        mParameters.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK),
                                        updateRequired);
@@ -1083,7 +1126,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
           }
         if( (valstr = params.get(CameraParameters::KEY_METERING_AREAS)) != NULL )
             {
-            CAMHAL_LOGDB("Metering areas position set %s", params.get(CameraParameters::KEY_METERING_AREAS));
+            CAMHAL_LOGDB("Metering areas position set %s", valstr);
             mParameters.set(CameraParameters::KEY_METERING_AREAS, valstr);
             }
 
@@ -1134,7 +1177,7 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
             mParameters.set(TICameraParameters::KEY_ALGO_GIC, valstr);
             }
 
-        CameraParameters adapterParams = mParameters;
+        //CameraParameters adapterParams = mParameters;
 
         if( NULL != params.get(TICameraParameters::KEY_TEMP_BRACKETING_RANGE_POS) )
             {
@@ -1165,13 +1208,11 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
             } else {
                 CAMHAL_LOGDA("Bracketing already enabled");
             }
-            adapterParams.set(TICameraParameters::KEY_TEMP_BRACKETING, valstr);
             mParameters.set(TICameraParameters::KEY_TEMP_BRACKETING, valstr);
         } else if ( ( (valstr = params.get(TICameraParameters::KEY_TEMP_BRACKETING)) != NULL ) &&
             ( strcmp(valstr, CameraParameters::FALSE) == 0 )) {
             CAMHAL_LOGDA("Disabling bracketing");
 
-            adapterParams.set(TICameraParameters::KEY_TEMP_BRACKETING, valstr);
             mParameters.set(TICameraParameters::KEY_TEMP_BRACKETING, valstr);
             mBracketingEnabled = false;
             if ( mBracketingRunning ) {
@@ -1179,7 +1220,6 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
             }
 
         } else {
-            adapterParams.remove(TICameraParameters::KEY_TEMP_BRACKETING);
             mParameters.remove(TICameraParameters::KEY_TEMP_BRACKETING);
         }
 
@@ -1203,7 +1243,8 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
         // will be called in startPreview()
         // TODO(XXX): Need to identify other parameters that need update from camera adapter
         if ( (NULL != mCameraAdapter) && (mPreviewEnabled || updateRequired) && !restartPreviewRequired ) {
-            ret |= mCameraAdapter->setParameters(adapterParams);
+            //ret |= mCameraAdapter->setParameters(adapterParams);
+            ret |= mCameraAdapter->setParameters(mParameters);
         }
 
         if( ( (valstr = params.get(TICameraParameters::KEY_SHUTTER_ENABLE)) != NULL ) &&
@@ -1229,7 +1270,8 @@ int CameraHal::setParameters_omx(const CameraParameters& params)
 
     //On fail restore old parameters
     if ( NO_ERROR != ret ) {
-        mParameters.unflatten(oldParams.flatten());
+        //mParameters.unflatten(oldParams.flatten());
+        mParameters = oldParams;
     }
 
     // Restart Preview if needed by KEY_RECODING_HINT only if preview is already running.
@@ -2366,6 +2408,7 @@ status_t CameraHal::startRecording( )
 bool CameraHal::setVideoModeParameters(const CameraParameters& params)
 {
     const char *valstr = NULL;
+    const char *valstrRemote = NULL;
     bool restartPreviewRequired = false;
 
     LOG_FUNCTION_NAME;
@@ -2375,24 +2418,24 @@ bool CameraHal::setVideoModeParameters(const CameraParameters& params)
     if ( (valstr == NULL) ||
         ( (valstr != NULL) && (strcmp(valstr, (const char *) TICameraParameters::VIDEO_MODE) != 0) ) )
         {
+            valstrRemote = params.get(CameraParameters::KEY_VIDEO_STABILIZATION);
         CAMHAL_LOGDA("Set CAPTURE_MODE to VIDEO_MODE");
         mParameters.set(TICameraParameters::KEY_CAP_MODE, (const char *) TICameraParameters::VIDEO_MODE);
         restartPreviewRequired = true;
         }
 
    // set VSTAB. restart is required if vstab value has changed
-   if (params.get(CameraParameters::KEY_VIDEO_STABILIZATION) != NULL) {
+    if ( valstrRemote != NULL) {
         // make sure we support vstab
         if (strcmp(mCameraProperties->get(CameraProperties::VSTAB_SUPPORTED),
                    CameraParameters::TRUE) == 0) {
             valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
             // vstab value has changed
             if ((valstr != NULL) &&
-                 strcmp(valstr, params.get(CameraParameters::KEY_VIDEO_STABILIZATION)) != 0) {
+                 strcmp(valstr, valstrRemote) != 0) {
                 restartPreviewRequired = true;
             }
-            mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,
-                            params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
+            mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,valstrRemote);
         }
     } else if (mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION)) {
         // vstab was configured but now unset
@@ -2402,16 +2445,17 @@ bool CameraHal::setVideoModeParameters(const CameraParameters& params)
 
 
     // Set VNF
-    if (params.get(TICameraParameters::KEY_VNF) == NULL) {
+    valstrRemote = params.get(TICameraParameters::KEY_VNF);
+    if ( valstrRemote == NULL) {
         CAMHAL_LOGDA("Enable VNF");
         mParameters.set(TICameraParameters::KEY_VNF, CameraParameters::TRUE);
         restartPreviewRequired = true;
     } else {
         valstr = mParameters.get(TICameraParameters::KEY_VNF);
-        if (valstr && strcmp(valstr, params.get(TICameraParameters::KEY_VNF)) != 0) {
+        if (valstr && strcmp(valstr, valstrRemote) != 0) {
             restartPreviewRequired = true;
         }
-        mParameters.set(TICameraParameters::KEY_VNF, params.get(TICameraParameters::KEY_VNF));
+        mParameters.set(TICameraParameters::KEY_VNF, valstrRemote);
     }
 
 #if !defined(OMAP_ENHANCEMENT) && !defined(ENHANCED_DOMX)
@@ -3616,7 +3660,7 @@ status_t CameraHal::initialize(CameraProperties::Properties* properties)
 
     // Dump the properties of this Camera
     // will only print if DEBUG macro is defined
-    mCameraProperties->dump();
+    //mCameraProperties->dump();
 
     if (strcmp(CameraProperties::DEFAULT_VALUE, mCameraProperties->get(CameraProperties::CAMERA_SENSOR_INDEX)) != 0 )
         {
@@ -4164,24 +4208,30 @@ void CameraHal::initDefaultParameters(int index)
 void CameraHal::forceStopPreview()
 {
     LOG_FUNCTION_NAME;
+    LOGD("HACK: CameraHal::forceStopPreview start !!!!!");
 
     // stop bracketing if it is running
     if ( mBracketingRunning ) {
+        LOGD("HACK: mBracketingRunning !!!!!");
         stopImageBracketing();
     }
 
     if(mDisplayAdapter.get() != NULL) {
         ///Stop the buffer display first
+        LOGD("HACK: disableDisplay !!!!!");
         mDisplayAdapter->disableDisplay();
     }
 
     if(mAppCallbackNotifier.get() != NULL) {
         //Stop the callback sending
+        LOGD("HACK: mAppCallbackNotifier->stop() !!!!!");
         mAppCallbackNotifier->stop();
+        LOGD("HACK: mAppCallbackNotifier->flushAndReturnFrames!!!!");
         mAppCallbackNotifier->flushAndReturnFrames();
+        LOGD("HACK: mAppCallbackNotifier->stopPreviewCallbacks !!!!!");
         mAppCallbackNotifier->stopPreviewCallbacks();
     }
-
+#if 1
     if ( NULL != mCameraAdapter ) {
         // only need to send these control commands to state machine if we are
         // passed the LOADED_PREVIEW_STATE
@@ -4195,6 +4245,7 @@ void CameraHal::forceStopPreview()
         mCameraAdapter->rollbackToInitializedState();
 
     }
+#endif
 
     freePreviewBufs();
     freePreviewDataBufs();
@@ -4203,6 +4254,7 @@ void CameraHal::forceStopPreview()
     mDisplayPaused = false;
     mPreviewStartInProgress = false;
 
+    LOGD("HACK: forceStopPreview end !!!!!");
     LOG_FUNCTION_NAME_EXIT;
 }
 

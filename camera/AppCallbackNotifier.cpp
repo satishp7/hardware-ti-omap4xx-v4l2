@@ -300,7 +300,7 @@ bool AppCallbackNotifier::notificationThread()
 
     if(mEventQ.hasMsg()) {
         ///Received an event from one of the event providers
-        CAMHAL_LOGDA("Notification Thread received an event from event provider (CameraAdapter)");
+        //CAMHAL_LOGDA("Notification Thread received an event from event provider (CameraAdapter)");
         notifyEvent();
      }
 

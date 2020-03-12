@@ -37,6 +37,7 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
     OMX_COLOR_FORMATTYPE pixFormat;
     CodingMode codingMode = mCodingMode;
     const char *valstr = NULL;
+    int varint = 0;
     OMX_TI_STEREOFRAMELAYOUTTYPE capFrmLayout;
     bool inCaptureState = false;
 
@@ -217,26 +218,28 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
         }
     }
 
-    if ( params.getInt(CameraParameters::KEY_ROTATION) != -1 )
-        {
-        if (params.getInt(CameraParameters::KEY_ROTATION) != (int) mPictureRotation) {
+    varint = params.getInt(CameraParameters::KEY_ROTATION);
+    if ( varint != -1 )
+    {
+        if ( ( unsigned int )  varint != mPictureRotation) {
             mPendingCaptureSettings |= SetRotation;
         }
-        mPictureRotation = params.getInt(CameraParameters::KEY_ROTATION);
-        }
+        mPictureRotation = varint;
+    }
     else
-        {
+    {
         if (mPictureRotation) mPendingCaptureSettings |= SetRotation;
         mPictureRotation = 0;
-        }
+    }
 
     CAMHAL_LOGVB("Picture Rotation set %d", mPictureRotation);
 
     // Read Sensor Orientation and set it based on perating mode
 
-    if ( params.getInt(TICameraParameters::KEY_SENSOR_ORIENTATION) != -1 )
-        {
-        mSensorOrientation = params.getInt(TICameraParameters::KEY_SENSOR_ORIENTATION);
+    varint = params.getInt(TICameraParameters::KEY_SENSOR_ORIENTATION);
+    if (( varint != -1 ) && (mCapMode == OMXCameraAdapter::VIDEO_MODE))
+    {
+        mSensorOrientation = varint;
         if (mSensorOrientation == 270 ||mSensorOrientation==90)
             {
             CAMHAL_LOGEA(" Orientation is 270/90. So setting counter rotation to Ducati");
@@ -251,43 +254,46 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
 
     CAMHAL_LOGVB("Sensor Orientation  set : %d", mSensorOrientation);
 
-    if ( params.getInt(TICameraParameters::KEY_BURST)  >= 1 )
-        {
-        if (params.getInt(TICameraParameters::KEY_BURST) != (int) mBurstFrames) {
+    varint = params.getInt(TICameraParameters::KEY_BURST);
+    if ( varint >= 1 )
+    {
+        if (varint != mBurstFrames) {
             mPendingCaptureSettings |= SetBurst;
         }
-        mBurstFrames = params.getInt(TICameraParameters::KEY_BURST);
-        }
+        mBurstFrames = varint;
+    }
     else
-        {
+    {
         if (mBurstFrames != 1) mPendingCaptureSettings |= SetBurst;
         mBurstFrames = 1;
         }
 
     CAMHAL_LOGVB("Burst Frames set %d", mBurstFrames);
 
-    if ( ( params.getInt(CameraParameters::KEY_JPEG_QUALITY)  >= MIN_JPEG_QUALITY ) &&
-         ( params.getInt(CameraParameters::KEY_JPEG_QUALITY)  <= MAX_JPEG_QUALITY ) )
-        {
-        if (params.getInt(CameraParameters::KEY_JPEG_QUALITY) != (int) mPictureQuality) {
+    varint = params.getInt(CameraParameters::KEY_JPEG_QUALITY);
+    if ( ( varint >= MIN_JPEG_QUALITY ) &&
+            ( varint  <= MAX_JPEG_QUALITY ) )
+    {
+        if ( ( unsigned int ) varint != mPictureQuality) {
             mPendingCaptureSettings |= SetQuality;
         }
-        mPictureQuality = params.getInt(CameraParameters::KEY_JPEG_QUALITY);
-        }
+        mPictureQuality = varint;
+    }
     else
-        {
+    {
         if (mPictureQuality != MAX_JPEG_QUALITY) mPendingCaptureSettings |= SetQuality;
         mPictureQuality = MAX_JPEG_QUALITY;
-        }
+    }
 
     CAMHAL_LOGVB("Picture Quality set %d", mPictureQuality);
 
-    if ( params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH)  >= 0 )
-        {
-        if (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH) != (int) mThumbWidth) {
+    varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+    if ( varint >= 0 )
+    {
+        if ( ( unsigned int ) varint != mThumbWidth) {
             mPendingCaptureSettings |= SetThumb;
         }
-        mThumbWidth = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+        mThumbWidth = varint;
         }
     else
         {
@@ -298,12 +304,13 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
 
     CAMHAL_LOGVB("Picture Thumb width set %d", mThumbWidth);
 
-    if ( params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT)  >= 0 )
+    varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+    if ( varint >= 0 )
         {
-        if (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT) != (int) mThumbHeight) {
+            if ( ( unsigned int ) varint != mThumbHeight) {
             mPendingCaptureSettings |= SetThumb;
         }
-        mThumbHeight = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+        mThumbHeight = varint;
         }
     else
         {
@@ -314,13 +321,14 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
 
     CAMHAL_LOGVB("Picture Thumb height set %d", mThumbHeight);
 
-    if ( ( params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY)  >= MIN_JPEG_QUALITY ) &&
-         ( params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY)  <= MAX_JPEG_QUALITY ) )
+    varint = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
+    if ( ( varint >= MIN_JPEG_QUALITY ) &&
+            ( varint <= MAX_JPEG_QUALITY ) )
         {
-        if (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY) != (int) mThumbQuality) {
+            if ( ( unsigned int ) varint != mThumbQuality) {
             mPendingCaptureSettings |= SetThumb;
         }
-        mThumbQuality = params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
+        mThumbQuality = varint;
         }
     else
         {

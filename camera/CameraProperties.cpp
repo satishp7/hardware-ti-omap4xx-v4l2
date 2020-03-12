@@ -120,7 +120,7 @@ status_t CameraProperties::loadProperties()
 
         for (int i = 0; i < mCamerasSupported; i++) {
             mCameraProps[i].setSensorIndex(i);
-            mCameraProps[i].dump();
+            //mCameraProps[i].dump();
         }
         mCameraProps[1].set(CameraProperties::CAMERA_NAME, "USBCAMERA");
     }
