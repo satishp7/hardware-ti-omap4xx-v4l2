@@ -936,7 +936,7 @@ status_t BaseCameraAdapter::sendCommand(CameraCommands operation, int value1, in
             break;
 
         case CameraAdapter::CAMERA_CANCEL_AUTOFOCUS:
-
+#if 0 // Disable AutoFocus as it does not work and fails. This increase time delay while switching cameras
             if ( ret == NO_ERROR )
                 {
                 ret = setState(operation);
@@ -955,7 +955,8 @@ status_t BaseCameraAdapter::sendCommand(CameraCommands operation, int value1, in
                 {
                 ret |= rollbackState();
                 }
-
+#endif
+            ret = NO_ERROR;
             break;
 
         case CameraAdapter::CAMERA_QUERY_RESOLUTION_PREVIEW:
