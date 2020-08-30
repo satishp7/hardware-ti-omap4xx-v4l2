@@ -20,6 +20,9 @@
 * This file maps the Camera Hardware Interface to V4L2.
 *
 */
+// To Enable camera HAL log
+//#define LOG_TAG "CameraHAL"
+//#define LOG_NDEBUG 0
 
 #include <utils/threads.h>
 
@@ -761,7 +764,9 @@ int camera_get_camera_info(int camera_id, struct camera_info *info)
         CAMHAL_LOGEB("getProperties() returned a NULL property set for Camera id %d", camera_id);
     }
 
-    info->facing = face_value;
+    // Satish: Legacy HAL does not set FACING_INDEX in init routine. As we have only 2
+    // camera at present. Setting facing value as per the camera id
+    info->facing = camera_id; //face_value;
     info->orientation = orientation;
 
 end:
